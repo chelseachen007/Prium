@@ -1,0 +1,24 @@
+{
+  "name": "prium",
+  "version": "1.0.0",
+  "description": "一个知识管理软件，用来更好的管理你的 RSS信息源和阅读笔记",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^5.9.0",
+    "@typescript-eslint/parser": "^5.9.0",
+    "eslint": "^8.6.0",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-prettier": "^4.0.0",
+    "lerna": "^7.4.2",
+    "prettier": "^2.5.1",
+    "typescript": "4.5.2"
+  },
+  "keywords": [],
+  "author": "chelsechen007 <aqwejie@qq.com>",
+  "license": "ISC",
+  "repository": "https://github.com/chelseachen007/Prium.git",
+  "dependencies": {}
+}
