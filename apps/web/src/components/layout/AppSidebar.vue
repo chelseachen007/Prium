@@ -94,11 +94,6 @@ const emit = defineEmits<{
 const showAddSubscription = () => {
   emit('add-subscription')
 }
-
-// 暴露方法给父组件
-defineExpose({
-  toggleMobileSidebar,
-})
 </script>
 
 <template>
