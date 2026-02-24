@@ -7,7 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model ai_api_keys {
+model AiApiKey {
   id           String   @id
   userId       String
   provider     String
@@ -20,10 +20,11 @@ model ai_api_keys {
   updatedAt    DateTime
 
   @@unique([userId, provider])
+  @@map("ai_api_keys")
 }
 
-model articles {
-  id             String          @id
+model Article {
+  id             String        @id
   subscriptionId String
   title          String
   content        String?
@@ -33,41 +34,43 @@ model articles {
   imageUrl       String?
   author         String?
   publishedAt    DateTime?
-  fetchedAt      DateTime        @default(now())
-  isRead         Boolean         @default(false)
-  isStarred      Boolean         @default(false)
-  readProgress   Float           @default(0)
+  fetchedAt      DateTime      @default(now())
+  isRead         Boolean       @default(false)
+  isStarred      Boolean       @default(false)
+  readProgress   Float         @default(0)
   readAt         DateTime?
-  isAiProcessed  Boolean         @default(false)
+  isAiProcessed  Boolean       @default(false)
   aiTags         String?
   sentiment      String?
-  createdAt      DateTime        @default(now())
+  createdAt      DateTime      @default(now())
   updatedAt      DateTime
-  subscriptions  subscriptions   @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
-  obsidian_notes obsidian_notes?
+  subscription   Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  obsidianNote   ObsidianNote?
 
   @@index([publishedAt])
   @@index([isStarred])
   @@index([isRead])
   @@index([subscriptionId])
+  @@map("articles")
 }
 
-model categories {
-  id            String          @id
+model Category {
+  id            String         @id
   userId        String
   name          String
   description   String?
   color         String?
   icon          String?
-  sortOrder     Int             @default(0)
-  createdAt     DateTime        @default(now())
+  sortOrder     Int            @default(0)
+  createdAt     DateTime       @default(now())
   updatedAt     DateTime
-  subscriptions subscriptions[]
+  subscriptions Subscription[]
 
   @@unique([userId, name])
+  @@map("categories")
 }
 
-model filter_rules {
+model FilterRule {
   id              String   @id
   userId          String
   name            String
@@ -84,9 +87,11 @@ model filter_rules {
   subscriptionIds String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime
+
+  @@map("filter_rules")
 }
 
-model obsidian_notes {
+model ObsidianNote {
   id           String    @id
   articleId    String    @unique
   notePath     String
@@ -97,11 +102,13 @@ model obsidian_notes {
   syncError    String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime
-  articles     articles  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  article      Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@map("obsidian_notes")
 }
 
-model subscriptions {
-  id              String      @id
+model Subscription {
+  id              String    @id
   userId          String
   categoryId      String?
   title           String
@@ -109,22 +116,23 @@ model subscriptions {
   feedUrl         String
   siteUrl         String?
   imageUrl        String?
-  isActive        Boolean     @default(true)
+  isActive        Boolean   @default(true)
   lastFetched     DateTime?
   fetchError      String?
   errorCode       String?
   refreshInterval Int?
-  showImages      Boolean     @default(true)
-  fullTextExtract Boolean     @default(false)
-  createdAt       DateTime    @default(now())
+  showImages      Boolean   @default(true)
+  fullTextExtract Boolean   @default(false)
+  createdAt       DateTime  @default(now())
   updatedAt       DateTime
-  articles        articles[]
-  categories      categories? @relation(fields: [categoryId], references: [id])
+  articles        Article[]
+  category        Category? @relation(fields: [categoryId], references: [id])
 
   @@unique([userId, feedUrl])
+  @@map("subscriptions")
 }
 
-model user_preferences {
+model UserPreference {
   id                  String   @id
   userId              String   @unique
   theme               String   @default("system")
@@ -140,4 +148,6 @@ model user_preferences {
   syncInterval        Int      @default(30)
   createdAt           DateTime @default(now())
   updatedAt           DateTime
+
+  @@map("user_preferences")
 }

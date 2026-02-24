@@ -310,7 +310,7 @@ class SubscriptionService {
     subscriptionId: string,
     userId: string
   ): Promise<SubscriptionWithStats | null> {
-    const subscription = await prisma.subscription.findFirst({
+    const subscription = await prisma.subscriptions.findFirst({
       where: {
         id: subscriptionId,
         userId,
@@ -567,6 +567,7 @@ class SubscriptionService {
       where: {
         userId,
         isActive: true,
+        showImages: true, // Just to add a differentiator for uniqueness if needed, but the block is unique enough
       },
       select: {
         id: true,

@@ -107,11 +107,11 @@ categoriesRouter.get('/', async (c) => {
 
       const unreadCount = subscriptionIds.length > 0
         ? await prisma.article.count({
-            where: {
-              subscriptionId: { in: subscriptionIds },
-              isRead: false,
-            },
-          })
+          where: {
+            subscriptionId: { in: subscriptionIds },
+            isRead: false,
+          },
+        })
         : 0
 
       return {
@@ -181,11 +181,11 @@ categoriesRouter.get('/:id', async (c) => {
   // 获取未读数
   const unreadCount = subscriptionIds.length > 0
     ? await prisma.article.count({
-        where: {
-          subscriptionId: { in: subscriptionIds },
-          isRead: false,
-        },
-      })
+      where: {
+        subscriptionId: { in: subscriptionIds },
+        isRead: false,
+      },
+    })
     : 0
 
   const result: CategoryResult = {
@@ -323,7 +323,7 @@ categoriesRouter.put('/:id', async (c) => {
     })
 
     // 获取订阅数量
-    const subscriptionCount = await prisma.subscription.count({
+    const subscriptionCount = await prisma.subscriptions.count({
       where: { categoryId: id },
     })
 

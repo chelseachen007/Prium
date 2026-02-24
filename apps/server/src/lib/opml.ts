@@ -138,13 +138,16 @@ class SimpleXMLParser {
   }
 
   private static parseOutlineRecursive(xml: string, nodes: OutlineNode[]): void {
-    // 匹配 outline 标签（自闭合或包含内容）
-    const regex = /<outline([^>]*)>|<outline([^>]*)>([\s\S]*?)<\/outline>/gi
+    // 优先匹配包含内容的标签（非自闭合），然后匹配自闭合标签
+    // 注意：需要先匹配有内容的，再匹配自闭合的
+    const regex = /<outline([^>\/]*)>([\s\S]*?)<\/outline>|<outline([^>]*)\s*\/>/gi
     let match
 
     while ((match = regex.exec(xml)) !== null) {
-      const attrString = match[1] || match[2]
-      const innerContent = match[3]
+      // match[1] 和 match[2] 来自第一个分支（有内容的标签）
+      // match[3] 来自第二个分支（自闭合标签）
+      const attrString = match[1] || match[3]
+      const innerContent = match[2]
 
       if (attrString) {
         const attrs = this.getAttributes(`<outline ${attrString}>`)
@@ -154,7 +157,7 @@ class SimpleXMLParser {
         }
 
         // 如果有内部内容，递归解析
-        if (innerContent) {
+        if (innerContent && innerContent.trim()) {
           this.parseOutlineRecursive(innerContent, node.children)
         }
 
