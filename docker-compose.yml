@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-file:/app/data/dev.db}
+      - PORT=${SERVER_PORT:-3001}
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "${SERVER_PORT:-3001}:${SERVER_PORT:-3001}"
+    restart: always
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "${WEB_PORT:-80}:80"
+    environment:
+      # Pass SERVER_PORT to Nginx container for template substitution
+      - SERVER_PORT=${SERVER_PORT:-3001}
+    depends_on:
+      - server
+    restart: always
