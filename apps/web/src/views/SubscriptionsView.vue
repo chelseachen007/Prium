@@ -123,12 +123,25 @@ const handleToggleActive = async (id: string) => {
 
 // 刷新订阅
 const handleRefresh = async (id: string) => {
+  const subscription = subscriptions.value.find(s => s.id === id)
+  if (!subscription) return
+
   console.log('Refresh subscription:', id)
+
+  // 显示刷新中的状态
+  const originalTitle = subscription.title
+  subscription.title = '刷新中...'
+
   try {
-    await api.post(`/subscriptions/${id}/refresh`)
-    await loadData()
+    const response = await api.post(`/subscriptions/${id}/refresh`)
+    if (response.success) {
+      console.log(`刷新成功，获取 ${response.data?.newArticles || 0} 篇新文章`)
+      // 重新加载数据
+      await loadData()
+    }
   } catch (error) {
     console.error('Refresh subscription error:', error)
+    subscription.title = originalTitle
   }
 }
 

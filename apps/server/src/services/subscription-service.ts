@@ -650,6 +650,7 @@ class SubscriptionService {
 
   /**
    * 创建文章
+   * 只导入最近一个月的文章
    */
   private async createArticles(
     subscriptionId: string,
@@ -669,13 +670,34 @@ class SubscriptionService {
   ): Promise<number> {
     let createdCount = 0
 
-    for (const article of articles) {
+    // 只保留最近一个月的文章
+    const oneMonthAgo = new Date()
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1)
+
+    const recentArticles = articles.filter((article) => {
+      if (!article.publishedAt) return true // 如果没有日期，保留
+      return new Date(article.publishedAt) >= oneMonthAgo
+    })
+
+    console.log(`过滤文章: 总数 ${articles.length}, 最近一个月 ${recentArticles.length}`)
+
+    for (const article of recentArticles) {
       try {
+        // 检查是否已存在（通过 URL）
+        const existing = await prisma.article.findFirst({
+          where: {
+            subscriptionId,
+            url: article.url,
+          },
+        })
+
+        if (existing) {
+          continue // 跳过已存在的文章
+        }
+
         await prisma.article.create({
           data: {
             subscriptionId,
-            // 使用 URL 作为唯一标识，因为 guid 可能重复
-            id: undefined, // 让 Prisma 生成
             title: article.title,
             content: article.content,
             contentText: article.contentText,
@@ -687,7 +709,7 @@ class SubscriptionService {
         })
         createdCount++
       } catch (error) {
-        // 忽略重复文章
+        // 忽略重复文章或其他错误
         console.error(`创建文章失败: ${article.title}`, error)
       }
     }
