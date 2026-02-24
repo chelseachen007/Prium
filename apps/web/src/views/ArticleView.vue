@@ -1,170 +1,174 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
-import ArticleView from '@/components/article/ArticleView.vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useApi } from '@/composables/useApi'
+import ArticleViewComponent from '@/components/article/ArticleView.vue'
 import type { Article } from '@/types'
 
 const route = useRoute()
+const router = useRouter()
+const api = useApi()
+
 const articleId = computed(() => route.params.id as string)
 
-// 模拟文章数据
-const allArticles = ref<Article[]>([
-  {
-    id: '1',
-    title: 'Vue 3.4 发布：全新的响应式系统',
-    summary: 'Vue 3.4 带来了全新的响应式系统，性能提升显著，同时引入了新的 API...',
-    content: `
-      <p>Vue 3.4 是一个重要的版本更新，带来了全新的响应式系统重构。这次更新不仅提升了性能，还引入了一些令人兴奋的新特性。</p>
-
-      <h2>性能提升</h2>
-      <p>新的响应式系统在内存使用和初始化速度上都有显著提升。根据基准测试，大型应用的初始化时间减少了约 40%。</p>
-
-      <h2>新特性</h2>
-      <ul>
-        <li><strong>defineModel</strong> - 简化双向绑定的定义</li>
-        <li><strong>v-bind 同名简写</strong> - 更简洁的模板语法</li>
-        <li><strong>改进的水合错误信息</strong> - 更容易调试 SSR 问题</li>
-      </ul>
-
-      <h2>迁移指南</h2>
-      <p>大多数应用可以直接升级到 Vue 3.4，但建议先阅读官方迁移指南，了解可能的破坏性变更。</p>
-
-      <blockquote>
-        "Vue 3.4 是我们迄今为止最好的版本，感谢社区的持续贡献。" - Evan You
-      </blockquote>
-    `,
-    source: { id: '1', name: 'Vue Blog', url: 'https://blog.vuejs.org', favicon: '' },
-    author: 'Evan You',
-    url: 'https://blog.vuejs.org/posts/vue-3-4',
-    publishedAt: '2024-01-15T10:00:00Z',
-    updatedAt: '2024-01-15T12:00:00Z',
-    readTime: '5 分钟',
-    isRead: false,
-    isStarred: false,
-    tags: ['Vue', 'JavaScript', 'Frontend'],
-  },
-  {
-    id: '2',
-    title: 'TypeScript 5.3 新特性解读',
-    summary: 'TypeScript 5.3 引入了 Import Attributes、新的类型推断优化等特性...',
-    content: `
-      <p>TypeScript 5.3 是一个令人兴奋的版本，带来了多项新特性和改进。</p>
-
-      <h2>Import Attributes</h2>
-      <p>支持在导入语句中添加类型断言，用于处理 JSON 模块和其他非 JavaScript 模块。</p>
-
-      <h2>稳定的类型推断改进</h2>
-      <p>改进了对复杂类型的推断能力，让代码更加简洁。</p>
-    `,
-    source: { id: '2', name: 'TypeScript Blog', url: 'https://devblogs.microsoft.com/typescript', favicon: '' },
-    author: 'Microsoft',
-    url: 'https://devblogs.microsoft.com/typescript/announcing-typescript-5-3/',
-    publishedAt: '2024-01-14T10:00:00Z',
-    readTime: '8 分钟',
-    isRead: true,
-    isStarred: true,
-    tags: ['TypeScript', 'JavaScript'],
-  },
-  {
-    id: '3',
-    title: 'Tailwind CSS v4.0 Alpha 发布',
-    summary: 'Tailwind CSS v4.0 带来了全新的引擎，构建速度提升 10 倍...',
-    content: `
-      <p>Tailwind CSS v4.0 是一个重大的架构升级。</p>
-
-      <h2>全新的构建引擎</h2>
-      <p>使用 Rust 编写的新引擎，构建速度提升 10 倍以上。</p>
-    `,
-    source: { id: '3', name: 'Tailwind Blog', url: 'https://tailwindcss.com/blog', favicon: '' },
-    author: 'Adam Wathan',
-    url: 'https://tailwindcss.com/blog/tailwindcss-v4-alpha',
-    publishedAt: '2024-01-13T10:00:00Z',
-    readTime: '6 分钟',
-    isRead: false,
-    isStarred: false,
-    tags: ['CSS', 'Tailwind'],
-  },
-  {
-    id: '4',
-    title: '2024 前端发展趋势预测',
-    summary: '让我们来看看 2024 年前端领域可能出现的趋势和变化...',
-    content: `
-      <p>2024 年前端领域将继续快速发展。</p>
-
-      <h2>AI 辅助开发</h2>
-      <p>AI 工具将成为前端开发的标准配置。</p>
-    `,
-    source: { id: '4', name: 'Frontend Weekly', url: 'https://frontendweekly.com', favicon: '' },
-    author: 'Frontend Team',
-    url: 'https://frontendweekly.com/2024-trends',
-    publishedAt: '2024-01-10T10:00:00Z',
-    readTime: '10 分钟',
-    isRead: false,
-    isStarred: true,
-    tags: ['Frontend', 'Trends'],
-  },
-])
-
-// 当前文章
-const currentArticle = computed(() => {
-  return allArticles.value.find(a => a.id === articleId.value) || null
-})
-
-// 当前文章索引
-const currentIndex = computed(() => {
-  return allArticles.value.findIndex(a => a.id === articleId.value)
-})
+// 文章数据
+const currentArticle = ref<Article | null>(null)
+const isLoading = ref(true)
+const error = ref('')
 
 // 上一篇和下一篇 ID
-const prevArticleId = computed(() => {
-  if (currentIndex.value > 0) {
-    return allArticles.value[currentIndex.value - 1].id
-  }
-  return undefined
-})
+const prevArticleId = ref<string | undefined>()
+const nextArticleId = ref<string | undefined>()
 
-const nextArticleId = computed(() => {
-  if (currentIndex.value < allArticles.value.length - 1) {
-    return allArticles.value[currentIndex.value + 1].id
-  }
-  return undefined
-})
+// 加载文章详情
+const loadArticle = async () => {
+  if (!articleId.value) return
 
-// 加载状态
-const isLoading = ref(true)
+  isLoading.value = true
+  error.value = ''
+
+  try {
+    const response = await api.get<any>(`/articles/${articleId.value}`)
+
+    if (response.success && response.data) {
+      const a = response.data
+      currentArticle.value = {
+        id: a.id,
+        title: a.title,
+        summary: a.summary || a.contentText?.substring(0, 200) || '',
+        content: a.content || '',
+        source: {
+          id: a.subscriptionId,
+          name: a.subscription?.title || '未知来源',
+          url: a.subscription?.siteUrl || '',
+          categoryId: a.subscription?.categoryId,
+        },
+        author: a.author,
+        url: a.url,
+        publishedAt: a.publishedAt || a.createdAt,
+        readTime: a.readingTime ? `${a.readingTime} 分钟` : undefined,
+        isRead: a.isRead,
+        isStarred: a.isStarred,
+        tags: a.aiTags || [],
+        coverImage: a.imageUrl,
+      }
+
+      // 加载上一篇和下一篇
+      loadAdjacentArticles()
+
+      // 自动标记已读
+      if (!a.isRead) {
+        markRead()
+      }
+    } else {
+      error.value = '文章不存在'
+    }
+  } catch (err) {
+    console.error('Load article error:', err)
+    error.value = '加载文章失败'
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// 加载相邻文章
+const loadAdjacentArticles = async () => {
+  try {
+    const [prevRes, nextRes] = await Promise.all([
+      api.get<any>(`/articles/${articleId.value}/previous`),
+      api.get<any>(`/articles/${articleId.value}/next`),
+    ])
+
+    if (prevRes.success && prevRes.data) {
+      prevArticleId.value = prevRes.data.id
+    } else {
+      prevArticleId.value = undefined
+    }
+
+    if (nextRes.success && nextRes.data) {
+      nextArticleId.value = nextRes.data.id
+    } else {
+      nextArticleId.value = undefined
+    }
+  } catch (err) {
+    console.error('Load adjacent articles error:', err)
+  }
+}
 
 // 切换收藏
-const toggleStar = () => {
-  if (currentArticle.value) {
-    currentArticle.value.isStarred = !currentArticle.value.isStarred
+const toggleStar = async () => {
+  if (!currentArticle.value) return
+
+  try {
+    const response = await api.put(`/articles/${articleId.value}/star`, {
+      isStarred: !currentArticle.value.isStarred,
+    })
+
+    if (response.success) {
+      currentArticle.value.isStarred = !currentArticle.value.isStarred
+    }
+  } catch (err) {
+    console.error('Toggle star error:', err)
   }
 }
 
 // 标记已读
-const markRead = () => {
-  if (currentArticle.value) {
-    currentArticle.value.isRead = true
+const markRead = async () => {
+  if (!currentArticle.value || currentArticle.value.isRead) return
+
+  try {
+    const response = await api.put(`/articles/${articleId.value}/read`, {
+      isRead: true,
+    })
+
+    if (response.success) {
+      currentArticle.value.isRead = true
+    }
+  } catch (err) {
+    console.error('Mark read error:', err)
   }
+}
+
+// 返回列表
+const goBack = () => {
+  router.back()
 }
 
 // 监听路由变化
 watch(articleId, () => {
-  isLoading.value = true
-  setTimeout(() => {
-    isLoading.value = false
-    // 自动标记已读
-    markRead()
-  }, 300)
+  loadArticle()
 }, { immediate: true })
 </script>
 
 <template>
-  <ArticleView
-    :article="currentArticle"
-    :is-loading="isLoading"
-    :prev-article-id="prevArticleId"
-    :next-article-id="nextArticleId"
-    @toggle-star="toggleStar"
-    @mark-read="markRead"
-  />
+  <div class="max-w-4xl mx-auto">
+    <!-- 加载状态 -->
+    <div v-if="isLoading" class="py-16 text-center">
+      <svg class="w-8 h-8 text-primary-500 animate-spin mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+      </svg>
+      <p class="text-neutral-500">加载中...</p>
+    </div>
+
+    <!-- 错误状态 -->
+    <div v-else-if="error" class="py-16 text-center">
+      <svg class="w-16 h-16 text-neutral-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <h3 class="text-lg font-medium text-neutral-900 mb-2">{{ error }}</h3>
+      <p class="text-neutral-500 mb-4">该文章可能已被删除</p>
+      <button class="btn-primary" @click="goBack">返回列表</button>
+    </div>
+
+    <!-- 文章内容 -->
+    <ArticleViewComponent
+      v-else-if="currentArticle"
+      :article="currentArticle"
+      :is-loading="isLoading"
+      :prev-article-id="prevArticleId"
+      :next-article-id="nextArticleId"
+      @toggle-star="toggleStar"
+      @mark-read="markRead"
+    />
+  </div>
 </template>

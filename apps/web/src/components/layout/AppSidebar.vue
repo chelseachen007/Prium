@@ -4,6 +4,16 @@ import { useRoute, useRouter } from 'vue-router'
 import { useApi } from '@/composables/useApi'
 import type { Category } from '@/types'
 
+interface SubscriptionInfo {
+  id: string
+  title: string
+  unreadCount: number
+}
+
+interface CategoryWithSubscriptions extends Category {
+  subscriptions: SubscriptionInfo[]
+}
+
 const route = useRoute()
 const router = useRouter()
 const api = useApi()
@@ -13,17 +23,40 @@ const isSidebarCollapsed = ref(false)
 const isMobileOpen = ref(false)
 
 // 从 API 加载分类列表
-const categories = ref<Category[]>([])
+const categories = ref<CategoryWithSubscriptions[]>([])
 const isLoadingCategories = ref(false)
 
 const loadCategories = async () => {
   isLoadingCategories.value = true
   try {
-    const response = await api.get<Category[]>('/categories')
-    if (response.success && response.data) {
-      categories.value = response.data.map(c => ({
+    // 并行加载分类和订阅
+    const [categoriesRes, subscriptionsRes] = await Promise.all([
+      api.get<any[]>('/categories'),
+      api.get<any[]>('/subscriptions'),
+    ])
+
+    const subscriptionMap = new Map<string, SubscriptionInfo[]>()
+
+    // 按分类组织订阅
+    if (subscriptionsRes.success && subscriptionsRes.data) {
+      for (const sub of subscriptionsRes.data) {
+        const categoryId = sub.categoryId
+        if (!subscriptionMap.has(categoryId)) {
+          subscriptionMap.set(categoryId, [])
+        }
+        subscriptionMap.get(categoryId)!.push({
+          id: sub.id,
+          title: sub.title,
+          unreadCount: sub.unreadCount || 0,
+        })
+      }
+    }
+
+    if (categoriesRes.success && categoriesRes.data) {
+      categories.value = categoriesRes.data.map(c => ({
         ...c,
         isExpanded: true,
+        subscriptions: subscriptionMap.get(c.id) || [],
       }))
     }
   } catch (error) {
@@ -35,12 +68,6 @@ const loadCategories = async () => {
 
 onMounted(() => {
   loadCategories()
-})
-
-// 暴露刷新方法给父组件
-defineExpose({
-  loadCategories,
-  toggleMobileSidebar,
 })
 
 // 导航菜单项
@@ -80,6 +107,12 @@ const viewCategory = (categoryId: string) => {
   isMobileOpen.value = false
 }
 
+// 查看特定订阅源的文章
+const viewSubscription = (subscriptionId: string) => {
+  router.push({ path: '/', query: { subscription: subscriptionId } })
+  isMobileOpen.value = false
+}
+
 // 导航到页面
 const navigateTo = (path: string) => {
   router.push(path)
@@ -94,6 +127,12 @@ const emit = defineEmits<{
 const showAddSubscription = () => {
   emit('add-subscription')
 }
+
+// 暴露方法给父组件
+defineExpose({
+  loadCategories,
+  toggleMobileSidebar,
+})
 </script>
 
 <template>
@@ -208,8 +247,21 @@ const showAddSubscription = () => {
           </button>
           <!-- 子分类/订阅列表 -->
           <div v-if="category.isExpanded" class="ml-4 mt-1 space-y-1">
+            <!-- 订阅源列表 -->
             <button
-              class="w-full text-left px-3 py-1.5 text-sm text-neutral-500 hover:text-neutral-700 hover:bg-neutral-50 rounded transition-colors"
+              v-for="subscription in category.subscriptions"
+              :key="subscription.id"
+              class="w-full text-left px-3 py-1.5 text-sm text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50 rounded transition-colors flex items-center justify-between"
+              @click="viewSubscription(subscription.id)"
+            >
+              <span class="truncate">{{ subscription.title }}</span>
+              <span v-if="subscription.unreadCount > 0" class="px-1.5 py-0.5 text-xs bg-primary-100 text-primary-700 rounded flex-shrink-0 ml-2">
+                {{ subscription.unreadCount }}
+              </span>
+            </button>
+            <!-- 查看全部 -->
+            <button
+              class="w-full text-left px-3 py-1.5 text-sm text-neutral-400 hover:text-neutral-600 hover:bg-neutral-50 rounded transition-colors"
               @click="viewCategory(category.id)"
             >
               查看全部 ({{ category.subscriptionCount }})

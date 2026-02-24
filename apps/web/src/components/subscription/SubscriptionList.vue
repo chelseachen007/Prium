@@ -14,12 +14,17 @@ const emit = defineEmits<{
   (e: 'toggle-active', id: string): void
   (e: 'refresh', id: string): void
   (e: 'reorder', ids: string[]): void
+  (e: 'batch-delete', ids: string[]): void
 }>()
 
 // 搜索和筛选
 const searchQuery = ref('')
 const selectedCategoryId = ref<string>('')
 const sortBy = ref<'name' | 'unread' | 'updated'>('updated')
+
+// 批量选择状态
+const isSelectMode = ref(false)
+const selectedIds = ref<Set<string>>(new Set())
 
 // 右键菜单状态
 const contextMenuVisible = ref(false)
@@ -65,12 +70,59 @@ const filteredSubscriptions = computed(() => {
   return result
 })
 
+// 是否全选
+const isAllSelected = computed(() => {
+  return filteredSubscriptions.value.length > 0 &&
+    filteredSubscriptions.value.every(s => selectedIds.value.has(s.id))
+})
+
+// 是否有选中
+const hasSelected = computed(() => selectedIds.value.size > 0)
+
 // 格式化日期
 const formatDate = (date: string) => {
   return new Date(date).toLocaleDateString('zh-CN', {
     month: 'short',
     day: 'numeric',
   })
+}
+
+// 进入/退出选择模式
+const toggleSelectMode = () => {
+  isSelectMode.value = !isSelectMode.value
+  if (!isSelectMode.value) {
+    selectedIds.value.clear()
+  }
+}
+
+// 切换单个选择
+const toggleSelect = (id: string) => {
+  if (selectedIds.value.has(id)) {
+    selectedIds.value.delete(id)
+  } else {
+    selectedIds.value.add(id)
+  }
+}
+
+// 全选/取消全选
+const toggleSelectAll = () => {
+  if (isAllSelected.value) {
+    selectedIds.value.clear()
+  } else {
+    filteredSubscriptions.value.forEach(s => selectedIds.value.add(s.id))
+  }
+}
+
+// 批量删除
+const handleBatchDelete = () => {
+  if (selectedIds.value.size === 0) return
+
+  const count = selectedIds.value.size
+  if (confirm(`确定要删除选中的 ${count} 个订阅吗？此操作不可恢复。`)) {
+    emit('batch-delete', Array.from(selectedIds.value))
+    selectedIds.value.clear()
+    isSelectMode.value = false
+  }
 }
 
 // 显示右键菜单
@@ -118,6 +170,7 @@ const handleRefresh = () => {
 
 // 拖拽相关
 const handleDragStart = (e: DragEvent, id: string) => {
+  if (isSelectMode.value) return
   draggedId.value = id
   if (e.dataTransfer) {
     e.dataTransfer.effectAllowed = 'move'
@@ -170,6 +223,48 @@ const handleClickOutside = () => {
   <div class="space-y-4" @click="handleClickOutside">
     <!-- 搜索和筛选栏 -->
     <div class="flex flex-wrap items-center gap-4 p-4 bg-white rounded-xl shadow-card">
+      <!-- 批量操作按钮 -->
+      <div class="flex items-center gap-2">
+        <button
+          v-if="!isSelectMode"
+          class="btn btn-ghost text-sm"
+          @click="toggleSelectMode"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+          批量管理
+        </button>
+        <template v-else>
+          <button
+            class="btn btn-ghost text-sm"
+            @click="toggleSelectAll"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path v-if="isAllSelected" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <path v-else stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            {{ isAllSelected ? '取消全选' : '全选' }}
+          </button>
+          <button
+            class="btn btn-danger text-sm"
+            :disabled="!hasSelected"
+            @click="handleBatchDelete"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            删除 ({{ selectedIds.size }})
+          </button>
+          <button
+            class="btn btn-secondary text-sm"
+            @click="toggleSelectMode"
+          >
+            取消
+          </button>
+        </template>
+      </div>
+
       <!-- 搜索框 -->
       <div class="relative flex-1 min-w-[200px]">
         <input
@@ -225,16 +320,29 @@ const handleClickOutside = () => {
         class="card p-4 hover:shadow-soft transition-all cursor-pointer group"
         :class="{
           'opacity-50': !subscription.isActive,
-          'ring-2 ring-primary-500': dragOverId === subscription.id
+          'ring-2 ring-primary-500': dragOverId === subscription.id,
+          'bg-primary-50 border-primary-200': selectedIds.has(subscription.id)
         }"
-        draggable="true"
-        @contextmenu="showContextMenu($event, subscription)"
+        :draggable="!isSelectMode"
+        @click="isSelectMode ? toggleSelect(subscription.id) : null"
+        @contextmenu="!isSelectMode && showContextMenu($event, subscription)"
         @dragstart="handleDragStart($event, subscription.id)"
         @dragover="handleDragOver($event, subscription.id)"
         @dragleave="handleDragLeave"
         @drop="handleDrop($event, subscription.id)"
       >
         <div class="flex items-center gap-4">
+          <!-- 选择复选框 -->
+          <div v-if="isSelectMode" class="flex-shrink-0">
+            <input
+              type="checkbox"
+              :checked="selectedIds.has(subscription.id)"
+              class="w-5 h-5 text-primary-600 border-neutral-300 rounded focus:ring-primary-500"
+              @click.stop
+              @change="toggleSelect(subscription.id)"
+            />
+          </div>
+
           <!-- 图标 -->
           <div class="w-10 h-10 bg-neutral-100 rounded-lg flex items-center justify-center flex-shrink-0">
             <img
@@ -286,8 +394,8 @@ const handleClickOutside = () => {
             </span>
           </div>
 
-          <!-- 操作按钮 -->
-          <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <!-- 操作按钮（非选择模式） -->
+          <div v-if="!isSelectMode" class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <!-- 刷新 -->
             <button
               class="p-1.5 text-neutral-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
@@ -337,8 +445,8 @@ const handleClickOutside = () => {
             </button>
           </div>
 
-          <!-- 拖拽手柄 -->
-          <div class="p-1 text-neutral-300 cursor-move">
+          <!-- 拖拽手柄（非选择模式） -->
+          <div v-if="!isSelectMode" class="p-1 text-neutral-300 cursor-move">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
             </svg>

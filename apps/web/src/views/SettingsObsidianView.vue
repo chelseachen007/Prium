@@ -251,7 +251,7 @@ const stats = computed(() => ({
                 class="flex items-center gap-2 text-sm"
               >
                 <code class="px-2 py-0.5 bg-white rounded text-primary-700 border border-primary-200 text-xs">
-                  {{ '{{' + variable.name + '}}' }}
+                  {{ '\{\{' + variable.name + '\}\}' }}
                 </code>
                 <span class="text-neutral-500">{{ variable.description }}</span>
               </div>

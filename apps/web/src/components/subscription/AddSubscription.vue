@@ -246,13 +246,13 @@ watch(feedUrl, (newUrl) => {
 
           <!-- 底部按钮 -->
           <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-neutral-200 bg-neutral-50">
-            <button class="btn-secondary" @click="close">
+            <button class="btn btn-secondary" @click="close">
               取消
             </button>
 
             <button
               v-if="step === 'input'"
-              class="btn-primary"
+              class="btn btn-primary"
               :disabled="!feedUrl || isLoading"
               @click="discoverFeeds"
             >
@@ -261,7 +261,7 @@ watch(feedUrl, (newUrl) => {
 
             <button
               v-if="step === 'select'"
-              class="btn-primary"
+              class="btn btn-primary"
               :disabled="!selectedDiscoveredFeed"
               @click="submit"
             >

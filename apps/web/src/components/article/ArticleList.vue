@@ -20,6 +20,7 @@ const emit = defineEmits<{
   (e: 'filter-change', filter: ArticleFilter): void
   (e: 'view-change', view: ViewMode): void
   (e: 'sort-change', sort: SortOption): void
+  (e: 'mark-all-read'): void
 }>()
 
 // 筛选和视图状态
@@ -43,7 +44,7 @@ const sortOptions: { value: SortOption; label: string }[] = [
 
 // 虚拟滚动相关
 const containerRef = ref<HTMLElement | null>(null)
-const itemHeight = 180 // 预估每个卡片高度
+const itemHeight = 280 // 预估每个卡片高度（增加以显示更多摘要内容）
 const bufferSize = 5
 
 const visibleRange = computed(() => {
@@ -145,6 +146,18 @@ onUnmounted(() => {
           <span v-if="option.value === 'starred'" class="ml-1 text-xs">
             ({{ stats.starred }})
           </span>
+        </button>
+
+        <!-- 一键已读按钮 -->
+        <button
+          v-if="stats.unread > 0"
+          class="px-3 py-1.5 text-sm font-medium rounded-lg text-neutral-600 hover:bg-success-50 hover:text-success-700 transition-colors"
+          @click="emit('mark-all-read')"
+        >
+          <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          全部已读
         </button>
       </div>
 

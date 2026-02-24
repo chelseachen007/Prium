@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, inject } from 'vue'
 import { useApi } from '@/composables/useApi'
 import SubscriptionList from '@/components/subscription/SubscriptionList.vue'
 import AddSubscription from '@/components/subscription/AddSubscription.vue'
@@ -8,6 +8,9 @@ import EditSubscription from '@/components/subscription/EditSubscription.vue'
 import type { Subscription, Category } from '@/types'
 
 const api = useApi()
+
+// 注入刷新侧边栏的方法
+const refreshSidebar = inject<() => void>('refreshSidebar')
 
 // 弹窗状态
 const showAddSubscription = ref(false)
@@ -109,6 +112,8 @@ const handleDelete = async (id: string) => {
     const response = await api.delete(`/subscriptions/${id}`)
     if (response.success) {
       subscriptions.value = subscriptions.value.filter(s => s.id !== id)
+      // 刷新侧边栏（分类和未读数）
+      refreshSidebar?.()
     }
   } catch (error) {
     console.error('Delete subscription error:', error)
@@ -156,6 +161,20 @@ const handleRefresh = async (id: string) => {
   }
 }
 
+// 批量删除订阅
+const handleBatchDelete = async (ids: string[]) => {
+  try {
+    // 并行删除所有选中的订阅
+    await Promise.all(ids.map(id => api.delete(`/subscriptions/${id}`)))
+    // 重新加载数据
+    await loadData()
+    // 刷新侧边栏（分类和未读数）
+    refreshSidebar?.()
+  } catch (error) {
+    console.error('Batch delete subscriptions error:', error)
+  }
+}
+
 // 重新排序
 const handleReorder = (ids: string[]) => {
   console.log('Reorder subscriptions:', ids)
@@ -191,21 +210,21 @@ const handleExportOPML = () => {
       </div>
       <div class="flex items-center gap-3">
         <!-- OPML 导入/导出 -->
-        <button class="btn-secondary text-sm" @click="handleImportOPML">
-          <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button class="btn btn-secondary text-sm" @click="handleImportOPML">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
           </svg>
           导入 OPML
         </button>
-        <button class="btn-secondary text-sm" @click="handleExportOPML">
-          <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button class="btn btn-secondary text-sm" @click="handleExportOPML">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
           导出 OPML
         </button>
         <!-- 添加订阅 -->
-        <button class="btn-primary" @click="showAddSubscription = true">
-          <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button class="btn btn-primary text-sm" @click="showAddSubscription = true">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
           添加订阅
@@ -239,6 +258,7 @@ const handleExportOPML = () => {
       @toggle-active="handleToggleActive"
       @refresh="handleRefresh"
       @reorder="handleReorder"
+      @batch-delete="handleBatchDelete"
     />
 
     <!-- 添加订阅弹窗 -->

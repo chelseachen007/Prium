@@ -181,16 +181,64 @@ const startImport = async () => {
   let failed = 0
   let skipped = 0
 
+  // 获取所有分类名称
+  const categoryNames = new Set<string>()
+  selectedSubscriptions.forEach(sub => {
+    if (sub.category) {
+      categoryNames.add(sub.category)
+    }
+  })
+
+  // 创建分类映射表（名称 -> ID）
+  const categoryMap = new Map<string, string>()
+
+  // 先处理分类：获取现有分类，创建不存在的分类
+  try {
+    // 获取现有分类
+    const categoriesRes = await api.get<any[]>('/categories')
+    const existingCategories = categoriesRes.data || []
+
+    // 建立现有分类映射
+    existingCategories.forEach((cat: any) => {
+      categoryMap.set(cat.name, cat.id)
+    })
+
+    // 创建不存在的分类
+    for (const categoryName of categoryNames) {
+      if (!categoryMap.has(categoryName)) {
+        try {
+          const createRes = await api.post('/categories', {
+            name: categoryName,
+          })
+          if (createRes.success && createRes.data) {
+            categoryMap.set(categoryName, createRes.data.id)
+            console.log(`创建分类: ${categoryName}`)
+          }
+        } catch (err) {
+          console.error(`创建分类失败: ${categoryName}`, err)
+        }
+      }
+    }
+  } catch (err) {
+    console.error('获取分类失败:', err)
+  }
+
   // 逐个导入订阅到数据库
   for (let i = 0; i < total; i++) {
     const sub = selectedSubscriptions[i]
 
     try {
+      // 确定分类 ID：优先使用订阅自带的分类，其次使用默认分类
+      let categoryId = sub.category ? categoryMap.get(sub.category) : undefined
+      if (!categoryId && defaultCategoryId.value) {
+        categoryId = defaultCategoryId.value
+      }
+
       // 调用后端 API 添加订阅
       const response = await api.post('/subscriptions', {
         feedUrl: sub.url,
         title: sub.title,
-        categoryId: defaultCategoryId.value || undefined,
+        categoryId: categoryId || undefined,
       })
 
       if (response.success) {

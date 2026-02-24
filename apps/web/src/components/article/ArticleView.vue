@@ -256,8 +256,19 @@ watch(() => props.article, () => {
         <article v-else-if="article" class="max-w-3xl mx-auto p-6">
           <!-- 头部信息 -->
           <header class="mb-8">
+            <!-- 标题（可点击跳转原文） -->
             <h1 class="text-2xl sm:text-3xl font-bold text-neutral-900 mb-4 leading-tight">
-              {{ article.title }}
+              <a
+                :href="article.url"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="hover:text-primary-600 transition-colors cursor-pointer group"
+              >
+                {{ article.title }}
+                <svg class="w-5 h-5 inline-block ml-1 text-neutral-400 group-hover:text-primary-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
             </h1>
 
             <!-- 元信息 -->
@@ -317,7 +328,24 @@ watch(() => props.article, () => {
 
           <!-- 正文内容 -->
           <div
-            class="article-content"
+            class="article-content prose prose-neutral prose-lg max-w-none
+              prose-headings:font-semibold prose-headings:text-neutral-900
+              prose-h1:text-2xl prose-h1:mt-8 prose-h1:mb-4
+              prose-h2:text-xl prose-h2:mt-6 prose-h2:mb-3
+              prose-h3:text-lg prose-h3:mt-4 prose-h3:mb-2
+              prose-p:text-neutral-700 prose-p:leading-relaxed prose-p:my-4
+              prose-a:text-primary-600 prose-a:no-underline hover:prose-a:underline
+              prose-strong:text-neutral-900 prose-strong:font-semibold
+              prose-blockquote:border-l-4 prose-blockquote:border-primary-300 prose-blockquote:bg-neutral-50 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:italic prose-blockquote:text-neutral-600
+              prose-ul:my-4 prose-ol:my-4
+              prose-li:my-1 prose-li:text-neutral-700
+              prose-code:bg-neutral-100 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:text-primary-700
+              prose-pre:bg-neutral-900 prose-pre:text-neutral-100 prose-pre:rounded-lg prose-pre:p-4 prose-pre:overflow-x-auto
+              prose-img:rounded-lg prose-img:shadow-md prose-img:max-w-full prose-img:my-6
+              prose-hr:border-neutral-200 prose-hr:my-8
+              prose-table:w-full prose-table:border-collapse
+              prose-th:bg-neutral-50 prose-th:border prose-th:border-neutral-200 prose-th:px-3 prose-th:py-2 prose-th:text-left prose-th:font-semibold
+              prose-td:border prose-td:border-neutral-200 prose-td:px-3 prose-td:py-2"
             :style="{ fontSize: `${fontSize}px` }"
             v-html="article.content"
           ></div>

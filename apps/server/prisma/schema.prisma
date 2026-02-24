@@ -1,6 +1,3 @@
-// Prisma Schema for RSS Reader
-// 使用 SQLite 作为开发数据库
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,212 +7,137 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ==================== 用户相关 ====================
-
-/// 用户偏好设置
-model UserPreference {
-  id        String   @id @default(cuid())
-  userId    String   @unique // 用户唯一标识
-
-  // 界面偏好
-  theme     String   @default("system") // light, dark, system
-  fontSize  String   @default("medium") // small, medium, large
-  language  String   @default("zh-CN")
-
-  // 阅读偏好
-  defaultView      String @default("unread") // all, unread, starred
-  articleListStyle String @default("list") // list, compact, card
-  autoMarkRead     Boolean @default(true)
-  scrollMode       String @default("infinite") // infinite, pagination
-
-  // 通知偏好
-  enableNotifications Boolean @default(false)
-  notificationSound   Boolean @default(true)
-
-  // 同步偏好
-  autoSync      Boolean @default(true)
-  syncInterval  Int     @default(30) // 分钟
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("user_preferences")
-}
-
-/// AI API 密钥配置
-model AIApiKey {
-  id          String   @id @default(cuid())
-  userId      String
-  provider    String   // openai, anthropic, google, etc.
-  apiKey      String   // 加密存储
-  apiEndpoint String?  // 自定义 API 端点
-  isActive    Boolean  @default(true)
-
-  // 使用限制
-  monthlyLimit Int?    // 每月使用次数限制
-  usedCount    Int     @default(0)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model ai_api_keys {
+  id           String   @id
+  userId       String
+  provider     String
+  apiKey       String
+  apiEndpoint  String?
+  isActive     Boolean  @default(true)
+  monthlyLimit Int?
+  usedCount    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime
 
   @@unique([userId, provider])
-  @@map("ai_api_keys")
 }
 
-// ==================== 订阅相关 ====================
-
-/// 分类
-model Category {
-  id          String   @id @default(cuid())
-  userId      String
-  name        String
-  description String?
-  color       String?  // 分类颜色 (hex)
-  icon        String?  // 分类图标
-  sortOrder   Int      @default(0)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  subscriptions Subscription[]
-
-  @@unique([userId, name])
-  @@map("categories")
-}
-
-/// 订阅源
-model Subscription {
-  id          String   @id @default(cuid())
-  userId      String
-  categoryId  String?
-
-  // RSS 基本信息
-  title       String
-  description String?
-  feedUrl     String
-  siteUrl     String?
-  imageUrl    String?
-
-  // 订阅状态
-  isActive    Boolean  @default(true)
-  lastFetched DateTime?
-  fetchError  String?
-  errorCode   String?
-
-  // 配置
-  refreshInterval Int?    // 自定义刷新间隔（分钟）
-  showImages      Boolean @default(true)
-  fullTextExtract Boolean @default(false) // 是否提取全文
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  category Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  articles Article[]
-
-  @@unique([userId, feedUrl])
-  @@map("subscriptions")
-}
-
-// ==================== 文章相关 ====================
-
-/// 文章
-model Article {
-  id             String   @id @default(cuid())
+model articles {
+  id             String          @id
   subscriptionId String
-
-  // 文章内容
   title          String
-  content        String?  // HTML 内容
-  contentText    String?  // 纯文本内容
-  summary        String?  // AI 生成的摘要
+  content        String?
+  contentText    String?
+  summary        String?
   url            String
   imageUrl       String?
   author         String?
-
-  // 元数据
   publishedAt    DateTime?
-  fetchedAt      DateTime  @default(now())
-
-  // 阅读状态
-  isRead         Boolean   @default(false)
-  isStarred      Boolean   @default(false)
-  readProgress   Float     @default(0) // 阅读进度 0-1
+  fetchedAt      DateTime        @default(now())
+  isRead         Boolean         @default(false)
+  isStarred      Boolean         @default(false)
+  readProgress   Float           @default(0)
   readAt         DateTime?
+  isAiProcessed  Boolean         @default(false)
+  aiTags         String?
+  sentiment      String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime
+  subscriptions  subscriptions   @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  obsidian_notes obsidian_notes?
 
-  // AI 处理
-  isAiProcessed  Boolean   @default(false)
-  aiTags         String?   // JSON 数组存储 AI 生成的标签
-  sentiment      String?   // 情感分析结果
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  subscription Subscription    @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
-  obsidianNotes ObsidianNote[]
-
-  @@index([subscriptionId])
-  @@index([isRead])
-  @@index([isStarred])
   @@index([publishedAt])
-  @@map("articles")
+  @@index([isStarred])
+  @@index([isRead])
+  @@index([subscriptionId])
 }
 
-// ==================== 过滤规则 ====================
+model categories {
+  id            String          @id
+  userId        String
+  name          String
+  description   String?
+  color         String?
+  icon          String?
+  sortOrder     Int             @default(0)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  subscriptions subscriptions[]
 
-/// 过滤规则
-model FilterRule {
-  id          String   @id @default(cuid())
-  userId      String
-  name        String
-  description String?
-
-  // 规则配置
-  isActive    Boolean  @default(true)
-  priority    Int      @default(0) // 优先级，数字越大越先执行
-
-  // 匹配条件
-  fieldType   String   // title, content, author, url, category
-  matchType   String   // contains, not_contains, equals, regex, starts_with, ends_with
-  pattern     String   // 匹配模式
-  caseSensitive Boolean @default(false)
-
-  // 匹配后的操作
-  action      String   // mark_read, hide, star, delete, move_to_category
-  actionValue String?  // 操作的额外值（如移动到的分类 ID）
-
-  // 应用范围
-  applyToAll   Boolean  @default(true)
-  subscriptionIds String? // JSON 数组存储特定订阅 ID
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("filter_rules")
+  @@unique([userId, name])
 }
 
-// ==================== Obsidian 集成 ====================
+model filter_rules {
+  id              String   @id
+  userId          String
+  name            String
+  description     String?
+  isActive        Boolean  @default(true)
+  priority        Int      @default(0)
+  fieldType       String
+  matchType       String
+  pattern         String
+  caseSensitive   Boolean  @default(false)
+  action          String
+  actionValue     String?
+  applyToAll      Boolean  @default(true)
+  subscriptionIds String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime
+}
 
-/// Obsidian 笔记记录
-model ObsidianNote {
-  id           String   @id @default(cuid())
-  articleId    String
-
-  // 笔记信息
-  notePath     String   // Obsidian vault 中的文件路径
+model obsidian_notes {
+  id           String    @id
+  articleId    String    @unique
+  notePath     String
   noteTitle    String?
   noteContent  String?
-
-  // 同步状态
-  syncStatus   String   @default("synced") // synced, pending, failed
+  syncStatus   String    @default("synced")
   lastSyncedAt DateTime?
   syncError    String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime
+  articles     articles  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+}
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model subscriptions {
+  id              String      @id
+  userId          String
+  categoryId      String?
+  title           String
+  description     String?
+  feedUrl         String
+  siteUrl         String?
+  imageUrl        String?
+  isActive        Boolean     @default(true)
+  lastFetched     DateTime?
+  fetchError      String?
+  errorCode       String?
+  refreshInterval Int?
+  showImages      Boolean     @default(true)
+  fullTextExtract Boolean     @default(false)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime
+  articles        articles[]
+  categories      categories? @relation(fields: [categoryId], references: [id])
 
-  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  @@unique([userId, feedUrl])
+}
 
-  @@unique([articleId])
-  @@map("obsidian_notes")
+model user_preferences {
+  id                  String   @id
+  userId              String   @unique
+  theme               String   @default("system")
+  fontSize            String   @default("medium")
+  language            String   @default("zh-CN")
+  defaultView         String   @default("unread")
+  articleListStyle    String   @default("list")
+  autoMarkRead        Boolean  @default(true)
+  scrollMode          String   @default("infinite")
+  enableNotifications Boolean  @default(false)
+  notificationSound   Boolean  @default(true)
+  autoSync            Boolean  @default(true)
+  syncInterval        Int      @default(30)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime
 }

@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, provide } from 'vue'
+import { useRouter } from 'vue-router'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AddSubscription from '@/components/subscription/AddSubscription.vue'
+
+const router = useRouter()
 
 // 侧边栏引用
 const sidebarRef = ref<InstanceType<typeof AppSidebar> | null>(null)
@@ -30,13 +33,24 @@ const handleRefresh = () => {
 // 处理搜索
 const handleSearch = (query: string) => {
   console.log('Search:', query)
-  // TODO: 搜索文章
+  // 跳转到首页并带上搜索参数
+  if (query.trim()) {
+    router.push({ path: '/', query: { search: query.trim() } })
+  }
 }
 
 // 切换侧边栏
 const toggleSidebar = () => {
   sidebarRef.value?.toggleMobileSidebar()
 }
+
+// 刷新侧边栏数据（分类和订阅）
+const refreshSidebar = () => {
+  sidebarRef.value?.loadCategories()
+}
+
+// 提供给子组件使用
+provide('refreshSidebar', refreshSidebar)
 </script>
 
 <template>

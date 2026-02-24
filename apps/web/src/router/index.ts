@@ -54,6 +54,30 @@ const routes: RouteRecordRaw[] = [
           title: 'Obsidian 配置',
         },
       },
+      {
+        path: 'notifications',
+        name: 'settings-notifications',
+        component: () => import('@/views/SettingsNotificationsView.vue'),
+        meta: {
+          title: '通知设置',
+        },
+      },
+      {
+        path: 'import-export',
+        name: 'settings-import-export',
+        component: () => import('@/views/SettingsImportExportView.vue'),
+        meta: {
+          title: '导入导出',
+        },
+      },
+      {
+        path: 'about',
+        name: 'settings-about',
+        component: () => import('@/views/SettingsAboutView.vue'),
+        meta: {
+          title: '关于',
+        },
+      },
     ],
   },
 ]
