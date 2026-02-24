@@ -1,22 +1,47 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useApi } from '@/composables/useApi'
 import type { Category } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
+const api = useApi()
 
 // 侧边栏状态
 const isSidebarCollapsed = ref(false)
 const isMobileOpen = ref(false)
 
-// 分类列表（模拟数据）
-const categories = ref<Category[]>([
-  { id: '1', name: '前端框架', icon: 'code', subscriptionCount: 5, unreadCount: 12, isExpanded: true },
-  { id: '2', name: '编程语言', icon: 'terminal', subscriptionCount: 3, unreadCount: 8, isExpanded: true },
-  { id: '3', name: '工具', icon: 'tool', subscriptionCount: 4, unreadCount: 5, isExpanded: false },
-  { id: '4', name: '设计', icon: 'palette', subscriptionCount: 2, unreadCount: 3, isExpanded: false },
-])
+// 从 API 加载分类列表
+const categories = ref<Category[]>([])
+const isLoadingCategories = ref(false)
+
+const loadCategories = async () => {
+  isLoadingCategories.value = true
+  try {
+    const response = await api.get<Category[]>('/categories')
+    if (response.success && response.data) {
+      categories.value = response.data.map(c => ({
+        ...c,
+        isExpanded: true,
+      }))
+    }
+  } catch (error) {
+    console.error('Load categories error:', error)
+  } finally {
+    isLoadingCategories.value = false
+  }
+}
+
+onMounted(() => {
+  loadCategories()
+})
+
+// 暴露刷新方法给父组件
+defineExpose({
+  loadCategories,
+  toggleMobileSidebar,
+})
 
 // 导航菜单项
 const navItems = computed(() => [

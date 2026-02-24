@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>RSS 订阅列表</title>
+    <dateCreated>Mon, 24 Feb 2024 00:00:00 GMT</dateCreated>
+  </head>
+  <body>
+    <outline text="技术博客" title="技术博客">
+      <outline type="rss" text="Vue.js Blog" title="Vue.js Blog" xmlUrl="https://blog.vuejs.org/rss.xml" />
+      <outline type="rss" text="React Blog" title="React Blog" xmlUrl="https://react.dev/blog/feed.xml" />
+      <outline type="rss" text="TypeScript Blog" title="TypeScript Blog" xmlUrl="https://devblogs.microsoft.com/typescript/feed/" />
+    </outline>
+    <outline text="设计" title="设计">
+      <outline type="rss" text="Smashing Magazine" title="Smashing Magazine" xmlUrl="https://www.smashingmagazine.com/feed/" />
+      <outline type="rss" text="CSS-Tricks" title="CSS-Tricks" xmlUrl="https://css-tricks.com/feed/" />
+    </outline>
+    <outline type="rss" text="Hacker News" title="Hacker News" xmlUrl="https://hnrss.org/frontpage" />
+    <outline type="rss" text="GitHub Blog" title="GitHub Blog" xmlUrl="https://github.blog/feed/" />
+  </body>
+</opml>

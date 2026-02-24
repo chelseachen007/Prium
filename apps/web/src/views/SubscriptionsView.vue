@@ -4,13 +4,16 @@ import { useApi } from '@/composables/useApi'
 import SubscriptionList from '@/components/subscription/SubscriptionList.vue'
 import AddSubscription from '@/components/subscription/AddSubscription.vue'
 import ImportOPML from '@/components/subscription/ImportOPML.vue'
+import EditSubscription from '@/components/subscription/EditSubscription.vue'
 import type { Subscription, Category } from '@/types'
 
 const api = useApi()
 
-// 添加订阅弹窗状态
+// 弹窗状态
 const showAddSubscription = ref(false)
 const showImportOPML = ref(false)
+const showEditSubscription = ref(false)
+const editingSubscription = ref<Subscription | null>(null)
 
 // 订阅数据
 const subscriptions = ref<Subscription[]>([])
@@ -50,8 +53,8 @@ const loadData = async () => {
         description: s.description,
         category: s.category?.name,
         categoryId: s.categoryId,
-        articleCount: s._count?.articles || 0,
-        unreadCount: 0, // TODO: 添加未读数统计
+        articleCount: s._count?.articles || s.articleCount || 0,
+        unreadCount: s.unreadCount || 0,
         lastUpdated: s.lastFetched || s.createdAt,
         isActive: s.isActive,
       }))
@@ -88,8 +91,16 @@ const handleAddSubscription = async (data: { url: string; categoryId?: string; a
 
 // 编辑订阅
 const handleEdit = (id: string) => {
-  console.log('Edit subscription:', id)
-  // TODO: 打开编辑弹窗
+  const subscription = subscriptions.value.find(s => s.id === id)
+  if (subscription) {
+    editingSubscription.value = subscription
+    showEditSubscription.value = true
+  }
+}
+
+// 编辑保存完成
+const handleEditSaved = () => {
+  loadData()
 }
 
 // 删除订阅
@@ -241,6 +252,14 @@ const handleExportOPML = () => {
       v-model="showImportOPML"
       :categories="categories"
       @import="handleOPMLImport"
+    />
+
+    <!-- 编辑订阅弹窗 -->
+    <EditSubscription
+      v-model="showEditSubscription"
+      :subscription="editingSubscription"
+      :categories="categories"
+      @saved="handleEditSaved"
     />
   </div>
 </template>
