@@ -62,6 +62,35 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /**
+   * SSO 登录 - 跳转到 SSO 服务
+   */
+  function loginWithSSO() {
+    const redirect = encodeURIComponent(`${window.location.origin}/auth/callback`)
+    const ssoUrl = import.meta.env.VITE_SSO_URL || 'https://sso.example.com'
+    window.location.href = `${ssoUrl}/api/oauth/github?redirect_uri=${redirect}`
+  }
+
+  /**
+   * SSO Token 验证
+   */
+  async function verifySSOToken(ssoToken: string): Promise<void> {
+    try {
+      const response = await axios.post(`${API_URL}/api/auth/sso/verify`, {
+        token: ssoToken
+      })
+      const { valid, token: localToken, user } = response.data
+      if (valid && localToken) {
+        setToken(localToken)
+        setUser(user)
+      } else {
+        throw new Error('SSO 验证失败')
+      }
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || 'SSO 验证失败')
+    }
+  }
+
   return {
     token,
     user,
@@ -70,6 +99,8 @@ export const useAuthStore = defineStore('auth', () => {
     setUser,
     logout,
     login,
-    register
+    register,
+    loginWithSSO,
+    verifySSOToken
   }
 })

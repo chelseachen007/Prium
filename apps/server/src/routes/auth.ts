@@ -10,6 +10,10 @@ const auth = new Hono()
 const JWT_SECRET = process.env.JWT_SECRET || 'your-jwt-secret-key'
 const WEB_URL = process.env.WEB_URL || 'http://localhost:5173'
 
+// SSO 配置
+const SSO_URL = process.env.SSO_URL || 'https://sso.example.com'
+const SSO_REDIRECT_URI = process.env.SSO_REDIRECT_URI || 'http://localhost:3001/api/auth/sso/callback'
+
 // 注册 schema
 const registerSchema = z.object({
   email: z.string().email(),
@@ -385,5 +389,180 @@ auth.get('/google/callback', async (c) => {
  */
 // 注意：这部分通常需要在应用层添加中间件来解析 JWT 并放入 Context
 // 这里仅作为示例，如果需要受保护的路由，应添加 verifyJwt 中间件
+
+/**
+ * SSO 登录跳转
+ */
+auth.get('/sso', (c) => {
+  const redirect = encodeURIComponent(SSO_REDIRECT_URI)
+  const ssoLoginUrl = `${SSO_URL}/api/oauth/github?redirect_uri=${redirect}`
+  return c.redirect(ssoLoginUrl)
+})
+
+/**
+ * SSO 回调处理
+ */
+auth.get('/sso/callback', async (c) => {
+  const token = c.req.query('token')
+  const userJson = c.req.query('user')
+  const error = c.req.query('error')
+
+  if (error) {
+    console.error('SSO Auth Error:', error)
+    return c.redirect(`${WEB_URL}/login?error=${encodeURIComponent(error)}`)
+  }
+
+  if (!token || !userJson) {
+    return c.redirect(`${WEB_URL}/login?error=no_token`)
+  }
+
+  try {
+    // 验证 SSO Token
+    const verifyResponse = await fetch(`${SSO_URL}/api/token/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    })
+
+    if (!verifyResponse.ok) {
+      throw new Error('Token verification failed')
+    }
+
+    const verifyData = await verifyResponse.json() as { valid: boolean; user?: { id: string; email: string; name?: string; avatar?: string } }
+
+    if (!verifyData.valid || !verifyData.user) {
+      throw new Error('Invalid token')
+    }
+
+    const ssoUser = verifyData.user
+
+    // 查找或创建用户
+    let user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: ssoUser.email },
+          { accounts: { some: { provider: 'sso', providerAccountId: ssoUser.id } } }
+        ]
+      },
+      include: { accounts: true }
+    })
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email: ssoUser.email,
+          name: ssoUser.name,
+          avatarUrl: ssoUser.avatar,
+          accounts: {
+            create: {
+              type: 'oauth',
+              provider: 'sso',
+              providerAccountId: ssoUser.id,
+              accessToken: token,
+            }
+          }
+        },
+        include: { accounts: true }
+      })
+    } else {
+      // 检查是否已关联该 SSO 账号
+      const existingAccount = user.accounts.find(acc => acc.provider === 'sso' && acc.providerAccountId === ssoUser.id)
+      if (!existingAccount) {
+        await prisma.account.create({
+          data: {
+            userId: user.id,
+            type: 'oauth',
+            provider: 'sso',
+            providerAccountId: ssoUser.id,
+            accessToken: token,
+          }
+        })
+      }
+    }
+
+    // 生成本地 JWT Token
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      name: user.name,
+      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7, // 7 days
+    }
+    const jwtToken = await sign(payload, JWT_SECRET)
+
+    // 重定向回前端
+    return c.redirect(`${WEB_URL}/auth/callback?token=${jwtToken}`)
+
+  } catch (err) {
+    console.error('SSO Callback Error:', err)
+    return c.redirect(`${WEB_URL}/login?error=auth_failed`)
+  }
+})
+
+/**
+ * SSO Token 验证代理（用于前端直接验证）
+ */
+auth.post('/sso/verify', async (c) => {
+  try {
+    const { token } = await c.req.json()
+
+    if (!token) {
+      return c.json({ valid: false, error: 'No token provided' }, 400)
+    }
+
+    const verifyResponse = await fetch(`${SSO_URL}/api/token/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    })
+
+    if (!verifyResponse.ok) {
+      return c.json({ valid: false, error: 'Verification failed' }, 401)
+    }
+
+    const verifyData = await verifyResponse.json() as { valid: boolean; user?: any }
+
+    if (!verifyData.valid || !verifyData.user) {
+      return c.json({ valid: false }, 401)
+    }
+
+    // 查找或创建本地用户
+    const ssoUser = verifyData.user
+    let user = await prisma.user.findFirst({
+      where: { email: ssoUser.email }
+    })
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email: ssoUser.email,
+          name: ssoUser.name,
+          avatarUrl: ssoUser.avatar,
+        }
+      })
+    }
+
+    // 生成本地 JWT
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      name: user.name,
+      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7,
+    }
+    const jwtToken = await sign(payload, JWT_SECRET)
+
+    return c.json({
+      valid: true,
+      token: jwtToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+      }
+    })
+  } catch (error) {
+    console.error('SSO Verify Error:', error)
+    return c.json({ valid: false, error: 'Verification failed' }, 500)
+  }
+})
 
 export { auth }
