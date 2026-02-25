@@ -155,12 +155,23 @@ function createApiClient(config: ApiClientConfig = {}): AxiosInstance {
       // 使用服务器返回的错误信息（如果有）
       const serverError = response.data?.error
       if (serverError) {
-        errorMessage = serverError
+        if (typeof serverError === 'string') {
+          errorMessage = serverError
+        } else if (typeof serverError === 'object' && serverError !== null) {
+          // @ts-ignore
+          errorMessage = serverError.message || JSON.stringify(serverError)
+          // @ts-ignore
+          if (serverError.code) {
+            // @ts-ignore
+            errorCode = serverError.code
+          }
+        }
       }
 
       const apiError: ApiErrorDetail = {
         code: errorCode,
         message: errorMessage,
+        details: typeof serverError === 'object' ? serverError : undefined,
       }
 
       return Promise.reject(new ApiError(apiError))

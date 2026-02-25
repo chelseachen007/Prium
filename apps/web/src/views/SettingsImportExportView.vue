@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, inject } from 'vue'
 import { useApi } from '@/composables/useApi'
 
 const api = useApi()
+const refreshSidebar = inject<() => void>('refreshSidebar')
 
 // 导入导出状态
 const isExporting = ref(false)
@@ -149,6 +150,7 @@ const importFile = async () => {
       await importJSON(content)
     }
 
+    refreshSidebar?.()
     alert('导入成功！')
   } catch (error) {
     console.error('Import error:', error)
@@ -190,7 +192,7 @@ const importOPML = async (content: string) => {
       }
 
       // 导入该分类下的订阅
-      for (const child of childOutlines) {
+      for (const child of Array.from(childOutlines)) {
         const feedUrl = child.getAttribute('xmlUrl')
         const title = child.getAttribute('text') || child.getAttribute('title') || ''
 

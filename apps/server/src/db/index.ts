@@ -2,9 +2,7 @@ import { PrismaClient } from '@prisma/client'
 
 // 创建 Prisma 客户端实例
 const prisma = new PrismaClient({
-  log: process.env.NODE_ENV === 'development'
-    ? ['query', 'error', 'warn']
-    : ['error'],
+  log: ['query', 'info', 'warn', 'error'],
 })
 
 // 优雅关闭

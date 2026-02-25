@@ -680,6 +680,7 @@ class SubscriptionService {
       url: string
       content: string | null
       contentText: string | null
+      summary: string | null
       author: string | null
       publishedAt: Date | null
       imageUrl: string | null
@@ -722,6 +723,7 @@ class SubscriptionService {
             title: article.title,
             content: article.content,
             contentText: article.contentText,
+            summary: article.summary,
             url: article.url,
             author: article.author,
             publishedAt: article.publishedAt,

@@ -42,47 +42,29 @@ const sortOptions: { value: SortOption; label: string }[] = [
   { value: 'readTime', label: '按阅读时长排序' },
 ]
 
-// 虚拟滚动相关
-const containerRef = ref<HTMLElement | null>(null)
-const itemHeight = 280 // 预估每个卡片高度（增加以显示更多摘要内容）
-const bufferSize = 5
-
-const visibleRange = computed(() => {
-  if (!containerRef.value) return { start: 0, end: 20 }
-
-  const scrollTop = containerRef.value.scrollTop
-  const containerHeight = containerRef.value.clientHeight
-
-  const start = Math.max(0, Math.floor(scrollTop / itemHeight) - bufferSize)
-  const end = Math.min(
-    props.articles.length,
-    Math.ceil((scrollTop + containerHeight) / itemHeight) + bufferSize
-  )
-
-  return { start, end }
-})
-
-const visibleArticles = computed(() => {
-  return props.articles.slice(visibleRange.value.start, visibleRange.value.end)
-})
-
-const totalHeight = computed(() => {
-  return props.articles.length * itemHeight
-})
-
-const offsetY = computed(() => {
-  return visibleRange.value.start * itemHeight
-})
-
 // 滚动加载更多
-const handleScroll = () => {
-  if (!containerRef.value || !props.hasMore || props.isLoading) return
+const loadMoreTrigger = ref<HTMLElement | null>(null)
+let observer: IntersectionObserver | null = null
 
-  const { scrollTop, scrollHeight, clientHeight } = containerRef.value
-  if (scrollHeight - scrollTop - clientHeight < 200) {
-    emit('load-more')
+onMounted(() => {
+  observer = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting && props.hasMore && !props.isLoading) {
+      emit('load-more')
+    }
+  }, {
+    rootMargin: '200px',
+  })
+
+  if (loadMoreTrigger.value) {
+    observer.observe(loadMoreTrigger.value)
   }
-}
+})
+
+onUnmounted(() => {
+  if (observer) {
+    observer.disconnect()
+  }
+})
 
 // 处理事件
 const handleToggleStar = (id: string) => emit('toggle-star', id)
@@ -109,19 +91,6 @@ const stats = computed(() => ({
   unread: props.articles.filter(a => !a.isRead).length,
   starred: props.articles.filter(a => a.isStarred).length,
 }))
-
-// 挂载和卸载
-onMounted(() => {
-  if (containerRef.value) {
-    containerRef.value.addEventListener('scroll', handleScroll)
-  }
-})
-
-onUnmounted(() => {
-  if (containerRef.value) {
-    containerRef.value.removeEventListener('scroll', handleScroll)
-  }
-})
 </script>
 
 <template>
@@ -202,8 +171,7 @@ onUnmounted(() => {
 
     <!-- 文章列表容器 -->
     <div
-      ref="containerRef"
-      class="flex-1 overflow-y-auto"
+      class="flex-1"
     >
       <!-- 加载状态 -->
       <div v-if="isLoading && articles.length === 0" class="space-y-4">
@@ -229,22 +197,20 @@ onUnmounted(() => {
         />
       </div>
 
-      <!-- 列表视图（带虚拟滚动） -->
-      <div v-else class="relative" :style="{ height: `${totalHeight}px` }">
-        <div
-          class="absolute w-full space-y-4"
-          :style="{ transform: `translateY(${offsetY}px)` }"
-        >
-          <ArticleCard
-            v-for="article in visibleArticles"
-            :key="article.id"
-            :article="article"
-            @toggle-star="handleToggleStar"
-            @mark-read="handleMarkRead"
-            @save-to-obsidian="handleSaveToObsidian"
-          />
-        </div>
+      <!-- 列表视图（普通渲染） -->
+      <div v-else class="space-y-4">
+        <ArticleCard
+          v-for="article in articles"
+          :key="article.id"
+          :article="article"
+          @toggle-star="handleToggleStar"
+          @mark-read="handleMarkRead"
+          @save-to-obsidian="handleSaveToObsidian"
+        />
       </div>
+
+      <!-- 加载更多触发器 -->
+      <div ref="loadMoreTrigger" class="h-4 w-full"></div>
 
       <!-- 加载更多指示器 -->
       <div v-if="isLoading && articles.length > 0" class="flex justify-center py-4">

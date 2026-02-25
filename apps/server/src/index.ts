@@ -7,7 +7,7 @@ import { HTTPException } from 'hono/http-exception'
 import { serve } from '@hono/node-server'
 import { ZodError } from 'zod'
 
-import { routes } from './routes/index.js'
+import routes from './routes/index.js'
 
 const app = new Hono()
 

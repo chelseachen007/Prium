@@ -208,17 +208,3 @@ model UserPreference {
 
   @@map("user_preferences")
 }
-
-model User {
-  id                String   @id @default(cuid())
-  githubId          String   @unique
-  name              String?
-  email             String?
-  avatar            String?
-  githubLogin       String?
-  githubAccessToken String
-  lastLoginAt       DateTime @updatedAt
-  createdAt         DateTime @default(now())
-
-  @@map("users")
-}

@@ -13,21 +13,16 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.19.9",
+    "@hono/zod-validator": "^0.2.0",
     "@prisma/client": "^5.8.0",
     "@rss-reader/shared": "file:../../packages/shared",
     "bcryptjs": "^3.0.3",
+    "feedparser": "^2.2.0",
     "hono": "^4.0.0",
-    "@hono/zod-validator": "^0.2.0",
-    "@hono/cors": "^1.0.0",
-    "@hono/logger": "^0.1.0",
-    "@hono/pretty-json": "^0.1.0",
-    "@hono/secure-headers": "^0.1.0",
-    "@hono/http-exception": "^0.1.0",
-    "zod": "^3.22.0",
+    "oslo": "^1.2.1",
     "prisma": "^5.8.0",
-    "oslo": "^1.2.0",
     "rss-parser": "^3.13.0",
-    "feedparser": "^2.2.0"
+    "zod": "^3.22.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

@@ -22,12 +22,27 @@ const listArticlesQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
   subscriptionId: z.string().optional(),
   categoryId: z.string().optional(),
-  isRead: z.enum(['true', 'false', '1', '0']).optional().transform(v => v === 'true' || v === '1'),
-  isStarred: z.enum(['true', 'false', '1', '0']).optional().transform(v => v === 'true' || v === '1'),
+  isRead: z.enum(['true', 'false', '1', '0'])
+    .optional()
+    .transform(v => {
+      if (v === undefined) return undefined;
+      return v === 'true' || v === '1';
+    }),
+  isStarred: z.enum(['true', 'false', '1', '0'])
+    .optional()
+    .transform(v => {
+      if (v === undefined) return undefined;
+      return v === 'true' || v === '1';
+    }),
   search: z.string().max(200).optional(),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
-  hasAiSummary: z.enum(['true', 'false', '1', '0']).optional().transform(v => v === 'true' || v === '1'),
+  hasAiSummary: z.enum(['true', 'false', '1', '0'])
+    .optional()
+    .transform(v => {
+      if (v === undefined) return undefined;
+      return v === 'true' || v === '1';
+    }),
   sortBy: z.enum(['publishedAt', 'createdAt', 'title', 'readProgress']).default('publishedAt'),
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
 });

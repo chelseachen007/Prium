@@ -1,35 +1,39 @@
 import { OAuth2Client } from 'oslo/oauth2'
 
 // GitHub OAuth2 配置
-export const githubOAuth2Client = new OAuth2Client({
-  clientId: process.env.GITHUB_CLIENT_ID || '',
-  clientSecret: process.env.GITHUB_CLIENT_SECRET || '',
-  authorizeEndpoint: 'https://github.com/login/oauth/authorize',
-  tokenEndpoint: 'https://github.com/login/oauth/access_token',
-  redirectURI: process.env.GITHUB_REDIRECT_URI || 'http://localhost:3001/api/auth/github/callback',
-})
+export const githubOAuth2Client = new OAuth2Client(
+  process.env.GITHUB_CLIENT_ID || '',
+  'https://github.com/login/oauth/authorize',
+  'https://github.com/login/oauth/access_token',
+  {
+    redirectURI: process.env.GITHUB_REDIRECT_URI || 'http://localhost:3001/api/auth/github/callback',
+  }
+)
 
 // 授权范围
 export const SCOPES = ['user:email', 'user:read'] as const
 
 // 获取授权 URL
-export function getAuthUrl(state: string): string {
-  return githubOAuth2Client.getAuthorizationUri(state, SCOPES)
+export async function getAuthUrl(state: string): Promise<string> {
+  const url = await githubOAuth2Client.createAuthorizationURL({
+    state,
+    scopes: [...SCOPES]
+  })
+  return url.toString()
 }
 
 // 交换授权码获取访问令牌
 export async function getAccessToken(code: string) {
-  const result = await githubOAuth2Client.validateAuthorizationCode(code)
-
-  if (!result.tokens) {
-    throw new Error('Failed to get access token')
-  }
+  const tokens = await githubOAuth2Client.validateAuthorizationCode(code, {
+    credentials: process.env.GITHUB_CLIENT_SECRET || '',
+    authenticateWith: 'request_body'
+  })
 
   return {
-    accessToken: result.tokens.access_token,
-    refreshToken: result.tokens.refresh_token,
-    tokenType: result.tokens.token_type,
-    expiresIn: result.tokens.expires_in,
+    accessToken: tokens.access_token,
+    refreshToken: tokens.refresh_token,
+    tokenType: tokens.token_type,
+    expiresIn: tokens.expires_in,
   }
 }
 
@@ -45,7 +49,7 @@ export async function getGithubUser(accessToken: string) {
     throw new Error('Failed to fetch GitHub user')
   }
 
-  return await response.json()
+  return await response.json() as Promise<any>
 }
 
 // 获取 GitHub 用户邮箱
@@ -60,7 +64,7 @@ export async function getGithubUserEmails(accessToken: string) {
     throw new Error('Failed to fetch GitHub user emails')
   }
 
-  const emails = await response.json()
+  const emails = await response.json() as any[]
   // 查找主邮箱
   const primaryEmail = emails.find((email: any) => email.primary && email.verified)
 

@@ -193,6 +193,8 @@ const handleOPMLImport = async (data: { subscriptions: Array<{ title: string; ur
   console.log('Import OPML data:', data)
   // 导入完成后重新加载数据
   await loadData()
+  // 刷新侧边栏（分类和未读数）
+  refreshSidebar?.()
 }
 
 // OPML 导出

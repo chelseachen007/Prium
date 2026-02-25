@@ -39,18 +39,18 @@ app.get('/health', (c) => {
 });
 
 // 注册各模块路由
-routes.route('/subscriptions', subscriptionsRouter);
-routes.route('/categories', categoriesRouter);
-routes.route('/articles', articlesRouter);
-routes.route('/obsidian', obsidianRouter);
-routes.route('/auth', auth);
+// routes.route('/subscriptions', subscriptionsRouter);
+// routes.route('/categories', categoriesRouter);
+// routes.route('/articles', articlesRouter);
+// routes.route('/obsidian', obsidianRouter);
+// routes.route('/auth', auth);
 // routes.route('/filter-rules', filterRulesRouter)
 // routes.route('/sync', syncRouter)
 // routes.route('/ai', aiRouter)
 // routes.route('/preferences', preferencesRouter)
 
 // 测试路由（开发阶段）
-routes.get('/test', (c) => {
+app.get('/test', (c) => {
   return c.json({
     message: 'API is working!',
     timestamp: new Date().toISOString(),

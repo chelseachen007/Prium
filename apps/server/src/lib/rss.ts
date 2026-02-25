@@ -143,6 +143,11 @@ class RSSParser {
         'User-Agent': 'RSS-Reader/1.0 (RSS Feed Reader)',
         'Accept': 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*',
       },
+      customFields: {
+        item: [
+          ['content:encoded', 'contentEncoded'],
+        ],
+      },
     }) as Parser
   }
 
@@ -232,6 +237,7 @@ class RSSParser {
     const content = this.extractContent(item)
     const contentText = this.stripHtml(content)
     const guid = this.generateGuid(item)
+    const summary = this.extractSummary(item, contentText)
 
     return {
       guid,
@@ -239,6 +245,7 @@ class RSSParser {
       url: item.link || '',
       content,
       contentText,
+      summary,
       author: item.creator || this.getStringField(item, 'dcCreator') || null,
       publishedAt: this.parseDate(item.pubDate || item.isoDate || this.getStringField(item, 'dcDate')),
       imageUrl: this.extractItemImageUrl(item),
@@ -276,6 +283,28 @@ class RSSParser {
 
     if (item.summary) {
       return item.summary
+    }
+
+    return null
+  }
+
+  /**
+   * 提取摘要
+   */
+  private extractSummary(item: FeedResult['items'][0], contentText: string | null): string | null {
+    // 优先使用 summary
+    if (item.summary) {
+      return this.stripHtml(item.summary)
+    }
+
+    // 其次使用 contentSnippet
+    if (item.contentSnippet) {
+      return item.contentSnippet
+    }
+
+    // 如果没有摘要，从正文截取前 200 字
+    if (contentText) {
+      return contentText.slice(0, 200) + (contentText.length > 200 ? '...' : '')
     }
 
     return null

@@ -1,6 +1,5 @@
 import { Hono } from 'hono'
 import { sign } from 'hono/jwt'
-import { setCookie } from 'hono/cookie'
 import { prisma } from '../db/index.js'
 import { HTTPException } from 'hono/http-exception'
 import { z } from 'zod'
@@ -171,7 +170,7 @@ auth.get('/github/callback', async (c) => {
       }),
     })
 
-    const tokenData = await tokenResponse.json()
+    const tokenData = await tokenResponse.json() as any
     if (tokenData.error) {
       throw new Error(tokenData.error_description)
     }
@@ -184,7 +183,7 @@ auth.get('/github/callback', async (c) => {
         Authorization: `Bearer ${accessToken}`,
       },
     })
-    const userData = await userResponse.json()
+    const userData = await userResponse.json() as any
 
     // 3. 获取用户邮箱（如果是私有的）
     let email = userData.email
@@ -194,7 +193,7 @@ auth.get('/github/callback', async (c) => {
           Authorization: `Bearer ${accessToken}`,
         },
       })
-      const emails = await emailsResponse.json()
+      const emails = await emailsResponse.json() as any[]
       const primaryEmail = emails.find((e: any) => e.primary && e.verified)
       if (primaryEmail) {
         email = primaryEmail.email
@@ -303,7 +302,7 @@ auth.get('/google/callback', async (c) => {
       }),
     })
 
-    const tokenData = await tokenResponse.json()
+    const tokenData = await tokenResponse.json() as any
     if (tokenData.error) {
       throw new Error(tokenData.error_description)
     }
@@ -314,7 +313,7 @@ auth.get('/google/callback', async (c) => {
         Authorization: `Bearer ${tokenData.access_token}`,
       },
     })
-    const userData = await userResponse.json()
+    const userData = await userResponse.json() as any
 
     // 3. 查找或创建用户
     let user = await prisma.user.findFirst({
