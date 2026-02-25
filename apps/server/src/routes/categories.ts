@@ -323,7 +323,7 @@ categoriesRouter.put('/:id', async (c) => {
     })
 
     // 获取订阅数量
-    const subscriptionCount = await prisma.subscriptions.count({
+    const subscriptionCount = await prisma.subscription.count({
       where: { categoryId: id },
     })
 

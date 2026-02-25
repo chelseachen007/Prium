@@ -310,7 +310,7 @@ class SubscriptionService {
     subscriptionId: string,
     userId: string
   ): Promise<SubscriptionWithStats | null> {
-    const subscription = await prisma.subscriptions.findFirst({
+    const subscription = await prisma.subscription.findFirst({
       where: {
         id: subscriptionId,
         userId,

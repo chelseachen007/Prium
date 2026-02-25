@@ -8,7 +8,7 @@ datasource db {
 }
 
 model AiApiKey {
-  id           String   @id
+  id           String   @id @default(cuid())
   userId       String
   provider     String
   apiKey       String
@@ -17,14 +17,14 @@ model AiApiKey {
   monthlyLimit Int?
   usedCount    Int      @default(0)
   createdAt    DateTime @default(now())
-  updatedAt    DateTime
+  updatedAt    DateTime @updatedAt
 
   @@unique([userId, provider])
   @@map("ai_api_keys")
 }
 
 model Article {
-  id             String        @id
+  id             String        @id @default(cuid())
   subscriptionId String
   title          String
   content        String?
@@ -43,7 +43,7 @@ model Article {
   aiTags         String?
   sentiment      String?
   createdAt      DateTime      @default(now())
-  updatedAt      DateTime
+  updatedAt      DateTime      @updatedAt
   subscription   Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
   obsidianNote   ObsidianNote?
 
@@ -55,7 +55,7 @@ model Article {
 }
 
 model Category {
-  id            String         @id
+  id            String         @id @default(cuid())
   userId        String
   name          String
   description   String?
@@ -63,7 +63,7 @@ model Category {
   icon          String?
   sortOrder     Int            @default(0)
   createdAt     DateTime       @default(now())
-  updatedAt     DateTime
+  updatedAt     DateTime       @updatedAt
   subscriptions Subscription[]
 
   @@unique([userId, name])
@@ -71,7 +71,7 @@ model Category {
 }
 
 model FilterRule {
-  id              String   @id
+  id              String   @id @default(cuid())
   userId          String
   name            String
   description     String?
@@ -86,13 +86,13 @@ model FilterRule {
   applyToAll      Boolean  @default(true)
   subscriptionIds String?
   createdAt       DateTime @default(now())
-  updatedAt       DateTime
+  updatedAt       DateTime @updatedAt
 
   @@map("filter_rules")
 }
 
 model ObsidianNote {
-  id           String    @id
+  id           String    @id @default(cuid())
   articleId    String    @unique
   notePath     String
   noteTitle    String?
@@ -100,15 +100,15 @@ model ObsidianNote {
   syncStatus   String    @default("synced")
   lastSyncedAt DateTime?
   syncError    String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
   article      Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
 
   @@map("obsidian_notes")
 }
 
 model Subscription {
-  id              String    @id
+  id              String    @id @default(cuid())
   userId          String
   categoryId      String?
   title           String
@@ -123,8 +123,8 @@ model Subscription {
   refreshInterval Int?
   showImages      Boolean   @default(true)
   fullTextExtract Boolean   @default(false)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
   articles        Article[]
   category        Category? @relation(fields: [categoryId], references: [id])
 
@@ -133,7 +133,7 @@ model Subscription {
 }
 
 model UserPreference {
-  id                  String   @id
+  id                  String   @id @default(cuid())
   userId              String   @unique
   theme               String   @default("system")
   fontSize            String   @default("medium")
@@ -147,7 +147,7 @@ model UserPreference {
   autoSync            Boolean  @default(true)
   syncInterval        Int      @default(30)
   createdAt           DateTime @default(now())
-  updatedAt           DateTime
+  updatedAt           DateTime @updatedAt
 
   @@map("user_preferences")
 }
