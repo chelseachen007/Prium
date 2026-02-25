@@ -56,6 +56,7 @@ export interface ParsedArticle {
   contentHash: string
   readingTime: number
   categories: string[]
+  summary: string | null
 }
 
 export interface ParsedFeed {

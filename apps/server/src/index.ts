@@ -72,14 +72,14 @@ app.onError((err, c) => {
   console.error('Error:', err)
 
   // Zod 验证错误
-  if (err instanceof ZodError) {
+  if (err instanceof ZodError || err.name === 'ZodError') {
     return c.json(
       {
         success: false,
         error: {
           code: 'VALIDATION_ERROR',
           message: '请求参数验证失败',
-          details: err.errors,
+          details: (err as ZodError).errors,
         },
       },
       400

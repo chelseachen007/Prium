@@ -6,6 +6,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { prisma } from '../db/index.js'
+import { randomUUID } from 'node:crypto'
 
 // ==================== Zod 验证 Schema ====================
 
@@ -239,12 +240,14 @@ categoriesRouter.post('/', async (c) => {
 
     const category = await prisma.category.create({
       data: {
+        id: randomUUID(),
         userId,
         name: validatedData.name,
         description: validatedData.description,
         color: validatedData.color,
         icon: validatedData.icon,
         sortOrder,
+        updatedAt: new Date(),
       },
     })
 
@@ -262,6 +265,68 @@ categoriesRouter.post('/', async (c) => {
       },
       201
     )
+  } catch (error) {
+    if (error instanceof CategoryError) {
+      return c.json<ApiResponse>(
+        {
+          success: false,
+          error: {
+            code: error.code,
+            message: error.message,
+          },
+        },
+        error.statusCode as 400 | 404 | 409
+      )
+    }
+    throw error
+  }
+})
+
+/**
+ * PUT /api/categories/reorder
+ * 重新排序分类
+ */
+categoriesRouter.put('/reorder', async (c) => {
+  const userId = 'default-user'
+  const body = await c.req.json()
+  const { orders } = reorderCategoriesSchema.parse(body)
+
+  try {
+    // 验证所有分类都属于该用户
+    const categoryIds = orders.map((o) => o.id)
+    const categories = await prisma.category.findMany({
+      where: {
+        id: { in: categoryIds },
+        userId,
+      },
+      select: { id: true },
+    })
+
+    const existingIds = new Set(categories.map((cat) => cat.id))
+    const invalidIds = categoryIds.filter((catId) => !existingIds.has(catId))
+
+    if (invalidIds.length > 0) {
+      throw new CategoryError(
+        `部分分类不存在: ${invalidIds.join(', ')}`,
+        'CATEGORIES_NOT_FOUND',
+        404
+      )
+    }
+
+    // 批量更新排序
+    await prisma.$transaction(
+      orders.map((order) =>
+        prisma.category.update({
+          where: { id: order.id },
+          data: { sortOrder: order.sortOrder },
+        })
+      )
+    )
+
+    return c.json<ApiResponse>({
+      success: true,
+      message: '分类排序已更新',
+    })
   } catch (error) {
     if (error instanceof CategoryError) {
       return c.json<ApiResponse>(
@@ -323,7 +388,7 @@ categoriesRouter.put('/:id', async (c) => {
     })
 
     // 获取订阅数量
-    const subscriptionCount = await prisma.subscriptions.count({
+    const subscriptionCount = await prisma.subscription.count({
       where: { categoryId: id },
     })
 
@@ -395,68 +460,6 @@ categoriesRouter.delete('/:id', async (c) => {
       data: {
         affectedSubscriptions: existing._count.subscriptions,
       },
-    })
-  } catch (error) {
-    if (error instanceof CategoryError) {
-      return c.json<ApiResponse>(
-        {
-          success: false,
-          error: {
-            code: error.code,
-            message: error.message,
-          },
-        },
-        error.statusCode as 400 | 404 | 409
-      )
-    }
-    throw error
-  }
-})
-
-/**
- * PUT /api/categories/reorder
- * 重新排序分类
- */
-categoriesRouter.put('/reorder', async (c) => {
-  const userId = 'default-user'
-  const body = await c.req.json()
-  const { orders } = reorderCategoriesSchema.parse(body)
-
-  try {
-    // 验证所有分类都属于该用户
-    const categoryIds = orders.map((o) => o.id)
-    const categories = await prisma.category.findMany({
-      where: {
-        id: { in: categoryIds },
-        userId,
-      },
-      select: { id: true },
-    })
-
-    const existingIds = new Set(categories.map((cat) => cat.id))
-    const invalidIds = categoryIds.filter((catId) => !existingIds.has(catId))
-
-    if (invalidIds.length > 0) {
-      throw new CategoryError(
-        `部分分类不存在: ${invalidIds.join(', ')}`,
-        'CATEGORIES_NOT_FOUND',
-        404
-      )
-    }
-
-    // 批量更新排序
-    await prisma.$transaction(
-      orders.map((order) =>
-        prisma.category.update({
-          where: { id: order.id },
-          data: { sortOrder: order.sortOrder },
-        })
-      )
-    )
-
-    return c.json<ApiResponse>({
-      success: true,
-      message: '分类排序已更新',
     })
   } catch (error) {
     if (error instanceof CategoryError) {

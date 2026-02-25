@@ -17,6 +17,9 @@ import type {
   ApiErrorCode,
 } from '@rss-reader/shared'
 
+import router from '@/router'
+import { useAuthStore } from '@/stores/auth'
+
 /**
  * API 错误类
  */
@@ -71,7 +74,7 @@ function createApiClient(config: ApiClientConfig = {}): AxiosInstance {
   client.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
       // 从 localStorage 获取 token
-      const token = localStorage.getItem('auth_token')
+      const token = localStorage.getItem('token')
       if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`
       }
@@ -119,8 +122,9 @@ function createApiClient(config: ApiClientConfig = {}): AxiosInstance {
           errorCode = 'UNAUTHORIZED'
           errorMessage = '未授权，请先登录'
           // 可以在这里触发登录流程
-          localStorage.removeItem('auth_token')
-          window.location.href = '/login'
+          const authStore = useAuthStore()
+          authStore.logout()
+          router.push('/login')
           break
         case 403:
           errorCode = 'FORBIDDEN'

@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useApi } from '@/composables/useApi'
 import type { Category } from '@/types'
+import AddCategory from '@/components/category/AddCategory.vue'
 
 interface SubscriptionInfo {
   id: string
@@ -21,6 +22,7 @@ const api = useApi()
 // 侧边栏状态
 const isSidebarCollapsed = ref(false)
 const isMobileOpen = ref(false)
+const isAddCategoryOpen = ref(false)
 
 // 从 API 加载分类列表
 const categories = ref<CategoryWithSubscriptions[]>([])
@@ -218,33 +220,51 @@ defineExpose({
       <div v-if="!isSidebarCollapsed" class="pt-4 mt-4 border-t border-neutral-200">
         <div class="flex items-center justify-between px-3 mb-2">
           <span class="text-xs font-semibold text-neutral-400 uppercase tracking-wider">分类</span>
+          <button
+            class="p-1 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 rounded transition-colors"
+            @click.stop="isAddCategoryOpen = true"
+            title="添加分类"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
         </div>
         <div v-for="category in categories" :key="category.id" class="mb-1">
-          <button
-            class="w-full sidebar-item justify-between"
-            @click="toggleCategory(category)"
-          >
-            <div class="flex items-center gap-3">
-              <svg class="w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-              </svg>
-              <span>{{ category.name }}</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <span class="px-1.5 py-0.5 text-xs bg-neutral-100 text-neutral-500 rounded">
-                {{ category.unreadCount }}
-              </span>
+          <div class="w-full flex items-center gap-1 sidebar-item p-0 pr-2 hover:bg-neutral-100 rounded-lg transition-colors group">
+            <!-- 折叠图标 (左侧) -->
+            <button
+              class="p-2 text-neutral-400 hover:text-neutral-600 rounded focus:outline-none"
+              @click.stop="toggleCategory(category)"
+            >
               <svg
-                class="w-4 h-4 text-neutral-400 transition-transform"
-                :class="{ 'rotate-180': category.isExpanded }"
+                class="w-4 h-4 transition-transform duration-200"
+                :class="{ '-rotate-90': !category.isExpanded }"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
               >
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
               </svg>
+            </button>
+
+            <!-- 文件夹内容 (点击查看全部) -->
+            <div 
+              class="flex-1 flex items-center gap-2 py-2 cursor-pointer"
+              @click="viewCategory(category.id)"
+            >
+              <svg class="w-5 h-5 text-neutral-400 group-hover:text-amber-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+              </svg>
+              <span class="text-sm font-medium text-neutral-700">{{ category.name }}</span>
             </div>
-          </button>
+
+            <!-- 未读数 -->
+            <span v-if="category.unreadCount > 0" class="px-1.5 py-0.5 text-xs bg-neutral-100 text-neutral-500 rounded">
+              {{ category.unreadCount }}
+            </span>
+          </div>
+
           <!-- 子分类/订阅列表 -->
           <div v-if="category.isExpanded" class="ml-4 mt-1 space-y-1">
             <!-- 订阅源列表 -->
@@ -258,13 +278,6 @@ defineExpose({
               <span v-if="subscription.unreadCount > 0" class="px-1.5 py-0.5 text-xs bg-primary-100 text-primary-700 rounded flex-shrink-0 ml-2">
                 {{ subscription.unreadCount }}
               </span>
-            </button>
-            <!-- 查看全部 -->
-            <button
-              class="w-full text-left px-3 py-1.5 text-sm text-neutral-400 hover:text-neutral-600 hover:bg-neutral-50 rounded transition-colors"
-              @click="viewCategory(category.id)"
-            >
-              查看全部 ({{ category.subscriptionCount }})
             </button>
           </div>
         </div>
@@ -290,4 +303,10 @@ defineExpose({
       </button>
     </div>
   </aside>
+
+  <!-- 添加分类弹窗 -->
+  <AddCategory
+    v-model="isAddCategoryOpen"
+    @success="loadCategories"
+  />
 </template>

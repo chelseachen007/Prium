@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, inject } from 'vue'
+import { useRouter } from 'vue-router'
 import { useApi } from '@/composables/useApi'
 import SubscriptionList from '@/components/subscription/SubscriptionList.vue'
 import AddSubscription from '@/components/subscription/AddSubscription.vue'
@@ -8,6 +9,7 @@ import EditSubscription from '@/components/subscription/EditSubscription.vue'
 import type { Subscription, Category } from '@/types'
 
 const api = useApi()
+const router = useRouter()
 
 // 注入刷新侧边栏的方法
 const refreshSidebar = inject<() => void>('refreshSidebar')
@@ -198,6 +200,48 @@ const handleExportOPML = () => {
   console.log('Export OPML')
   // TODO: 实现 OPML 导出
 }
+
+// 选择订阅
+const handleSelect = (id: string) => {
+  router.push({
+    name: 'home',
+    query: { subscription: id }
+  })
+}
+
+// 重命名分类
+const handleRenameCategory = async (id: string) => {
+  const category = categories.value.find(c => c.id === id)
+  if (!category) return
+
+  const newName = prompt('请输入新的分类名称', category.name)
+  if (newName && newName !== category.name) {
+    try {
+      const response = await api.put(`/categories/${id}`, { name: newName })
+      if (response.success) {
+        // 重新加载数据
+        await loadData()
+        refreshSidebar?.()
+      }
+    } catch (error) {
+      console.error('Rename category error:', error)
+    }
+  }
+}
+
+// 删除分类
+const handleDeleteCategory = async (id: string) => {
+  try {
+    const response = await api.delete(`/categories/${id}`)
+    if (response.success) {
+      // 重新加载数据
+      await loadData()
+      refreshSidebar?.()
+    }
+  } catch (error) {
+    console.error('Delete category error:', error)
+  }
+}
 </script>
 
 <template>
@@ -259,6 +303,9 @@ const handleExportOPML = () => {
       @refresh="handleRefresh"
       @reorder="handleReorder"
       @batch-delete="handleBatchDelete"
+      @select="handleSelect"
+      @rename-category="handleRenameCategory"
+      @delete-category="handleDeleteCategory"
     />
 
     <!-- 添加订阅弹窗 -->

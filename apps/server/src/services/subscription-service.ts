@@ -13,6 +13,7 @@ import {
   feedDiscovery,
   type DiscoveredFeed,
 } from '../lib/feed-discovery.js'
+import { randomUUID } from 'node:crypto'
 
 // ==================== 类型定义 ====================
 
@@ -129,21 +130,37 @@ class SubscriptionService {
       )
     }
 
-    // 验证分类是否存在（如果指定了分类）
+    // 处理分类：如果是名称则查找或创建，如果是 ID 则验证存在
+    let finalCategoryId: string | null = null
+    
     if (categoryId) {
-      const category = await prisma.category.findFirst({
-        where: {
-          id: categoryId,
-          userId,
-        },
+      // 尝试作为 ID 查找
+      const categoryById = await prisma.category.findFirst({
+        where: { id: categoryId, userId },
       })
 
-      if (!category) {
-        throw new SubscriptionError(
-          '分类不存在',
-          'CATEGORY_NOT_FOUND',
-          404
-        )
+      if (categoryById) {
+        finalCategoryId = categoryById.id
+      } else {
+        // 尝试作为名称查找
+        const categoryByName = await prisma.category.findFirst({
+          where: { name: categoryId, userId },
+        })
+
+        if (categoryByName) {
+          finalCategoryId = categoryByName.id
+        } else {
+          // 都不存在，创建新分类
+          const newCategory = await prisma.category.create({
+            data: {
+              id: randomUUID(),
+              userId,
+              name: categoryId,
+              updatedAt: new Date(),
+            },
+          })
+          finalCategoryId = newCategory.id
+        }
       }
     }
 
@@ -177,8 +194,9 @@ class SubscriptionService {
     // 创建订阅
     const subscription = await prisma.subscription.create({
       data: {
+        id: randomUUID(),
         userId,
-        categoryId: categoryId || null,
+        categoryId: finalCategoryId,
         title: parsedFeed.title,
         description: parsedFeed.description,
         feedUrl: parsedFeed.feedUrl,
@@ -189,6 +207,7 @@ class SubscriptionService {
         refreshInterval: options.refreshInterval || null,
         showImages: options.showImages ?? true,
         fullTextExtract: options.fullTextExtract ?? false,
+        updatedAt: new Date(),
       },
       include: {
         category: {
@@ -310,7 +329,7 @@ class SubscriptionService {
     subscriptionId: string,
     userId: string
   ): Promise<SubscriptionWithStats | null> {
-    const subscription = await prisma.subscriptions.findFirst({
+    const subscription = await prisma.subscription.findFirst({
       where: {
         id: subscriptionId,
         userId,
@@ -698,6 +717,7 @@ class SubscriptionService {
 
         await prisma.article.create({
           data: {
+            id: randomUUID(),
             subscriptionId,
             title: article.title,
             content: article.content,
@@ -706,6 +726,7 @@ class SubscriptionService {
             author: article.author,
             publishedAt: article.publishedAt,
             imageUrl: article.imageUrl,
+            updatedAt: new Date(),
           },
         })
         createdCount++

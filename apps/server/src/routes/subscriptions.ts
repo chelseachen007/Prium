@@ -8,11 +8,12 @@ import { z } from 'zod'
 import { subscriptionService, SubscriptionError } from '../services/subscription-service.js'
 import { opmlService } from '../lib/opml.js'
 import { prisma } from '../db/index.js'
+import { randomUUID } from 'node:crypto'
 
 // ==================== Zod 验证 Schema ====================
 
 const createSubscriptionSchema = z.object({
-  feedUrl: z.string().url('请输入有效的 URL'),
+  feedUrl: z.string().trim().url('请输入有效的 URL'),
   categoryId: z.string().optional(),
   refreshInterval: z.number().int().min(5).max(1440).optional(), // 5分钟到24小时
   showImages: z.boolean().optional(),
@@ -155,6 +156,7 @@ subscriptionsRouter.post('/', async (c) => {
         error.statusCode as 400 | 404 | 409
       )
     }
+    console.error('Subscription creation failed:', error)
     throw error
   }
 })
@@ -298,8 +300,10 @@ subscriptionsRouter.post('/import', async (c) => {
         if (!category) {
           category = await prisma.category.create({
             data: {
+              id: randomUUID(),
               userId,
               name: categoryName,
+              updatedAt: new Date(),
             },
           })
         }
