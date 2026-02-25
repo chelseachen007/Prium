@@ -347,20 +347,20 @@ auth.get('/google/callback', async (c) => {
         include: { accounts: true }
       })
     } else {
-       const existingAccount = user.accounts.find(acc => acc.provider === 'google' && acc.providerAccountId === userData.id)
-       if (!existingAccount) {
-         await prisma.account.create({
-           data: {
-             userId: user.id,
-             type: 'oauth',
-             provider: 'google',
-             providerAccountId: userData.id,
-             accessToken: tokenData.access_token,
-             refreshToken: tokenData.refresh_token,
-             expiresAt: Math.floor(Date.now() / 1000) + tokenData.expires_in,
-           }
-         })
-       }
+      const existingAccount = user.accounts.find(acc => acc.provider === 'google' && acc.providerAccountId === userData.id)
+      if (!existingAccount) {
+        await prisma.account.create({
+          data: {
+            userId: user.id,
+            type: 'oauth',
+            provider: 'google',
+            providerAccountId: userData.id,
+            accessToken: tokenData.access_token,
+            refreshToken: tokenData.refresh_token,
+            expiresAt: Math.floor(Date.now() / 1000) + tokenData.expires_in,
+          }
+        })
+      }
     }
 
     // 4. 生成 JWT Token

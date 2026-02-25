@@ -1,18 +1,15 @@
 {
   "name": "@rss-reader/server",
   "version": "0.1.0",
-  "description": "RSS Reader Backend Server",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts",
     "build": "tsc",
+    "start": "node dist/index.js",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio",
-    "lint": "eslint src --ext .ts",
-    "typecheck": "tsc --noEmit"
+    "db:migrate": "prisma migrate deploy"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.9",
@@ -20,17 +17,22 @@
     "@rss-reader/shared": "file:../../packages/shared",
     "bcryptjs": "^3.0.3",
     "hono": "^4.0.0",
+    "@hono/zod-validator": "^0.2.0",
+    "@hono/cors": "^1.0.0",
+    "@hono/logger": "^0.1.0",
+    "@hono/pretty-json": "^0.1.0",
+    "@hono/secure-headers": "^0.1.0",
+    "@hono/http-exception": "^0.1.0",
+    "zod": "^3.22.0",
+    "prisma": "^5.8.0",
+    "oslo": "^1.2.0",
     "rss-parser": "^3.13.0",
-    "zod": "^3.22.0"
+    "feedparser": "^2.2.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.10.0",
-    "prisma": "^5.8.0",
     "tsx": "^4.7.0",
-    "typescript": "^5.3.0"
-  },
-  "engines": {
-    "node": ">=18.0.0"
+    "typescript": "^5.0.0"
   }
 }

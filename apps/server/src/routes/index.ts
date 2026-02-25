@@ -1,12 +1,6 @@
-/**
- * API 路由入口
- *
- * 统一管理所有 API 路由模块
- *
- * @module routes/index
- */
+import { Hono } from 'hono'
 
-import { Hono } from 'hono';
+const app = new Hono()
 
 // 导入各模块路由
 import subscriptionsRouter from './subscriptions.js';
@@ -19,10 +13,15 @@ import { auth } from './auth.js';
 // import aiRouter from './ai.js'
 // import preferencesRouter from './preferences.js'
 
-const routes = new Hono();
+// 注册路由
+app.route('/subscriptions', subscriptionsRouter)
+app.route('/articles', articlesRouter)
+app.route('/categories', categoriesRouter)
+app.route('/obsidian', obsidianRouter)
+app.route('/auth', auth)
 
-// API 版本信息
-routes.get('/', (c) => {
+// 健康检查
+app.get('/health', (c) => {
   return c.json({
     version: 'v1',
     endpoints: [
@@ -55,16 +54,7 @@ routes.get('/test', (c) => {
   return c.json({
     message: 'API is working!',
     timestamp: new Date().toISOString(),
-  });
-});
+  })
+})
 
-// 健康检查路由
-routes.get('/health', (c) => {
-  return c.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-  });
-});
-
-export { routes };
+export default app
