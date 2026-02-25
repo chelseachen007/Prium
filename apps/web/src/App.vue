@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { ref, provide } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, provide, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AddSubscription from '@/components/subscription/AddSubscription.vue'
 
 const router = useRouter()
+const route = useRoute()
+
+const isPublicRoute = computed(() => route.meta.isPublic === true)
 
 // 侧边栏引用
 const sidebarRef = ref<InstanceType<typeof AppSidebar> | null>(null)
@@ -54,7 +57,11 @@ provide('refreshSidebar', refreshSidebar)
 </script>
 
 <template>
-  <div class="flex h-screen bg-neutral-50">
+  <!-- 公开页面布局（无侧边栏和头部） -->
+  <router-view v-if="isPublicRoute" />
+
+  <!-- 应用主布局 -->
+  <div v-else class="flex h-screen bg-neutral-50">
     <!-- 侧边栏 -->
     <AppSidebar ref="sidebarRef" @add-subscription="handleAddSubscription" />
 

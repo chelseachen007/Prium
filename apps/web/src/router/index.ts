@@ -1,6 +1,34 @@
-import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router'
+import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 const routes: RouteRecordRaw[] = [
+  {
+    path: '/login',
+    name: 'login',
+    component: () => import('@/views/LoginView.vue'),
+    meta: {
+      title: '登录',
+      isPublic: true,
+    },
+  },
+  {
+    path: '/register',
+    name: 'register',
+    component: () => import('@/views/RegisterView.vue'),
+    meta: {
+      title: '注册',
+      isPublic: true,
+    },
+  },
+  {
+    path: '/auth/callback',
+    name: 'auth-callback',
+    component: () => import('@/views/AuthCallback.vue'),
+    meta: {
+      title: '登录中...',
+      isPublic: true,
+    },
+  },
   {
     path: '/',
     name: 'home',
@@ -87,11 +115,19 @@ const router = createRouter({
   routes,
 })
 
-// 路由守卫 - 设置页面标题
-router.beforeEach((to, _from, next) => {
+// 路由守卫
+router.beforeEach((to, from, next) => {
+  // 设置页面标题
   const title = to.meta.title as string | undefined
   document.title = title ? `${title} - RSS Reader` : 'RSS Reader'
-  next()
+
+  // 认证检查
+  const authStore = useAuthStore()
+  if (!to.meta.isPublic && !authStore.isAuthenticated) {
+    next({ name: 'login', query: { redirect: to.fullPath } })
+  } else {
+    next()
+  }
 })
 
 export default router

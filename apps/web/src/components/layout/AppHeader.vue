@@ -1,8 +1,15 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '../../stores/auth'
 
 const route = useRoute()
+const router = useRouter()
+const authStore = useAuthStore()
+
+// 用户信息
+const userName = computed(() => authStore.user && authStore.user.name ? authStore.user.name : '用户')
+const userEmail = computed(() => authStore.user && authStore.user.email ? authStore.user.email : 'user@example.com')
 
 // 搜索相关
 const searchQuery = ref('')
@@ -85,8 +92,16 @@ const toggleSidebar = () => {
 
 // 用户操作
 const handleUserAction = (action: string) => {
+  console.log('handleUserAction', action)
   isUserMenuOpen.value = false
-  console.log('User action:', action)
+  if (action === 'logout') {
+    authStore.logout()
+    router.push('/login')
+  } else if (action === 'settings') {
+    router.push('/settings')
+  } else if (action === 'profile') {
+    // TODO: navigate to profile
+  }
 }
 </script>
 
@@ -193,8 +208,8 @@ const handleUserAction = (action: string) => {
             class="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-neutral-200 py-2 z-50"
           >
             <div class="px-4 py-2 border-b border-neutral-100">
-              <p class="text-sm font-medium text-neutral-900">用户</p>
-              <p class="text-xs text-neutral-500">user@example.com</p>
+              <p class="text-sm font-medium text-neutral-900">{{ userName }}</p>
+              <p class="text-xs text-neutral-500">{{ userEmail }}</p>
             </div>
             <a href="#" class="block px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50" @click.prevent="handleUserAction('profile')">
               个人资料

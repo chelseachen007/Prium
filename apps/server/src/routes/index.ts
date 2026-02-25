@@ -13,6 +13,7 @@ import subscriptionsRouter from './subscriptions.js';
 import categoriesRouter from './categories.js';
 import { articlesRouter } from './articles.js';
 import { obsidianRouter } from './obsidian.js';
+import { auth } from './auth.js';
 // import filterRulesRouter from './filter-rules.js'
 // import syncRouter from './sync.js'
 // import aiRouter from './ai.js'
@@ -28,6 +29,7 @@ routes.get('/', (c) => {
       '/subscriptions',
       '/articles',
       '/categories',
+      '/auth',
       '/filter-rules',
       '/sync',
       '/obsidian',
@@ -42,6 +44,7 @@ routes.route('/subscriptions', subscriptionsRouter);
 routes.route('/categories', categoriesRouter);
 routes.route('/articles', articlesRouter);
 routes.route('/obsidian', obsidianRouter);
+routes.route('/auth', auth);
 // routes.route('/filter-rules', filterRulesRouter)
 // routes.route('/sync', syncRouter)
 // routes.route('/ai', aiRouter)
