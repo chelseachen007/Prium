@@ -80,15 +80,28 @@ export type {
 // ============================================================================
 export type {
   FilterRule,
-  FilterType,
+  FilterAction,
+  FilterScope,
   FilterField,
   MatchCondition,
   CreateFilterRuleRequest,
   UpdateFilterRuleRequest,
+  FilterContext,
   FilterResult,
+  FilterResultAction,
+  FilterRuleStats,
   FilterGroup,
   FilterTemplate,
   FilterStats,
+  // 外部服务相关类型
+  ExternalServiceType,
+  ExternalServiceConfig,
+  InstapaperConfig,
+  NotionConfig,
+  PocketConfig,
+  CreateExternalServiceRequest,
+  UpdateExternalServiceRequest,
+  ExternalServiceTestResult,
 } from './types/filter';
 
 export { BUILT_IN_FILTER_TEMPLATES } from './types/filter';

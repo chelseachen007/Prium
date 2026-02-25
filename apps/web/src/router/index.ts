@@ -75,6 +75,14 @@ const routes: RouteRecordRaw[] = [
     },
     children: [
       {
+        path: 'filters',
+        name: 'settings-filters',
+        component: () => import('@/views/SettingsFiltersView.vue'),
+        meta: {
+          title: '过滤规则',
+        },
+      },
+      {
         path: 'obsidian',
         name: 'settings-obsidian',
         component: () => import('@/views/SettingsObsidianView.vue'),

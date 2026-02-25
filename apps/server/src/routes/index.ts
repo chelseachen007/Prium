@@ -8,7 +8,8 @@ import categoriesRouter from './categories.js';
 import { articlesRouter } from './articles.js';
 import { obsidianRouter } from './obsidian.js';
 import { auth } from './auth.js';
-// import filterRulesRouter from './filter-rules.js'
+import filterRulesRouter from './filter-rules.js';
+import externalServicesRouter from './external-services.js';
 // import syncRouter from './sync.js'
 // import aiRouter from './ai.js'
 // import preferencesRouter from './preferences.js'
@@ -19,6 +20,8 @@ app.route('/articles', articlesRouter)
 app.route('/categories', categoriesRouter)
 app.route('/obsidian', obsidianRouter)
 app.route('/auth', auth)
+app.route('/filter-rules', filterRulesRouter)
+app.route('/external-services', externalServicesRouter)
 
 // 健康检查
 app.get('/health', (c) => {

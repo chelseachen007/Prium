@@ -14,6 +14,9 @@ import {
   type DiscoveredFeed,
 } from '../lib/feed-discovery.js'
 import { randomUUID } from 'node:crypto'
+import { filterService } from './filter-service.js'
+import { externalService } from './external-service.js'
+import type { FilterContext } from '@rss-reader/shared'
 
 // ==================== 类型定义 ====================
 
@@ -222,7 +225,7 @@ class SubscriptionService {
 
     // 创建文章
     if (parsedFeed.articles.length > 0) {
-      await this.createArticles(subscription.id, parsedFeed.articles)
+      await this.createArticles(subscription.id, userId, finalCategoryId, parsedFeed.articles)
     }
 
     return this.toResult(subscription)
@@ -533,7 +536,12 @@ class SubscriptionService {
       // 创建新文章
       let createdCount = 0
       if (newArticles.length > 0) {
-        createdCount = await this.createArticles(subscriptionId, newArticles)
+        createdCount = await this.createArticles(
+          subscriptionId,
+          subscription.userId,
+          subscription.categoryId,
+          newArticles
+        )
       }
 
       // 更新订阅信息
@@ -670,10 +678,12 @@ class SubscriptionService {
 
   /**
    * 创建文章
-   * 只导入最近一个月的文章
+   * 只导入最近一个月的文章，并应用过滤规则
    */
   private async createArticles(
     subscriptionId: string,
+    userId: string,
+    categoryId: string | null,
     articles: Array<{
       guid: string
       title: string
@@ -716,7 +726,28 @@ class SubscriptionService {
           continue // 跳过已存在的文章
         }
 
-        await prisma.article.create({
+        // 构建过滤上下文
+        const filterContext: FilterContext = {
+          title: article.title,
+          content: article.content || undefined,
+          contentText: article.contentText || undefined,
+          author: article.author || undefined,
+          url: article.url,
+          subscriptionId,
+          categoryId: categoryId || undefined,
+        }
+
+        // 应用过滤规则
+        const filterResult = await filterService.applyFilters(userId, filterContext)
+
+        // 如果规则是删除，跳过创建
+        if (filterResult.shouldSkip) {
+          console.log(`文章被过滤跳过: ${article.title}`)
+          continue
+        }
+
+        // 创建文章，应用过滤结果
+        const newArticle = await prisma.article.create({
           data: {
             id: randomUUID(),
             subscriptionId,
@@ -728,10 +759,27 @@ class SubscriptionService {
             author: article.author,
             publishedAt: article.publishedAt,
             imageUrl: article.imageUrl,
+            // 应用过滤结果
+            isRead: filterResult.isRead,
+            isStarred: filterResult.isStarred,
+            isHighlighted: filterResult.isHighlighted,
+            isFiltered: filterResult.isFiltered,
+            tags: filterResult.tags.length > 0 ? JSON.stringify(filterResult.tags) : null,
+            filterRuleIds: filterResult.matchedRuleIds.length > 0
+              ? JSON.stringify(filterResult.matchedRuleIds)
+              : null,
             updatedAt: new Date(),
           },
         })
+
         createdCount++
+
+        // 异步处理外部推送
+        if (filterResult.externalActions.length > 0) {
+          this.processExternalActions(newArticle, filterResult.externalActions).catch((error) => {
+            console.error(`外部推送失败: ${article.title}`, error)
+          })
+        }
       } catch (error) {
         // 忽略重复文章或其他错误
         console.error(`创建文章失败: ${article.title}`, error)
@@ -739,6 +787,46 @@ class SubscriptionService {
     }
 
     return createdCount
+  }
+
+  /**
+   * 处理外部推送动作
+   */
+  private async processExternalActions(
+    article: { title: string; url: string; content: string | null; summary: string | null },
+    actions: Array<{ action: string; value?: string; ruleId: string; ruleName: string }>
+  ): Promise<void> {
+    for (const action of actions) {
+      try {
+        if (action.action === 'pushToInstapaper') {
+          await externalService.pushArticle(
+            '', // userId 不需要，因为 externalService 内部会查找配置
+            'instapaper',
+            {
+              title: article.title,
+              url: article.url,
+              content: article.content || undefined,
+              summary: article.summary || undefined,
+            }
+          )
+          console.log(`已推送到 Instapaper: ${article.title}`)
+        } else if (action.action === 'pushToNotion') {
+          await externalService.pushArticle(
+            '',
+            'notion',
+            {
+              title: article.title,
+              url: article.url,
+              content: article.content || undefined,
+              summary: article.summary || undefined,
+            }
+          )
+          console.log(`已推送到 Notion: ${article.title}`)
+        }
+      } catch (error) {
+        console.error(`推送失败 [${action.action}]:`, error)
+      }
+    }
   }
 
   /**

@@ -8,22 +8,23 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(uuid())
-  email         String?   @unique
-  password      String?
-  name          String?
-  avatarUrl     String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  accounts      Account[]
-  sessions      Session[]
-  
+  id               String             @id @default(uuid())
+  email            String?            @unique
+  password         String?
+  name             String?
+  avatarUrl        String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  accounts         Account[]
+  sessions         Session[]
+
   // Relations to existing models
-  categories    Category[]
-  subscriptions Subscription[]
-  filterRules   FilterRule[]
-  preference    UserPreference?
-  aiApiKeys     AiApiKey[]
+  categories       Category[]
+  subscriptions    Subscription[]
+  filterRules      FilterRule[]
+  preference       UserPreference?
+  aiApiKeys        AiApiKey[]
+  externalServices ExternalService[]
 
   @@map("users")
 }
@@ -95,6 +96,10 @@ model Article {
   isAiProcessed  Boolean       @default(false)
   aiTags         String?
   sentiment      String?
+  tags           String?       // 文章标签 (JSON 数组)
+  isHighlighted  Boolean       @default(false) // 高亮标记
+  isFiltered     Boolean       @default(false) // 是否被过滤规则处理
+  filterRuleIds  String?       // 匹配的规则ID列表 (JSON 数组)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   subscription   Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
@@ -104,6 +109,7 @@ model Article {
   @@index([isStarred])
   @@index([isRead])
   @@index([subscriptionId])
+  @@index([isHighlighted])
   @@map("articles")
 }
 
@@ -125,24 +131,28 @@ model Category {
 }
 
 model FilterRule {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   name            String
   description     String?
-  isActive        Boolean  @default(true)
-  priority        Int      @default(0)
-  fieldType       String
-  matchType       String
+  isActive        Boolean   @default(true)
+  priority        Int       @default(0)
+  fieldType       String    // title, content, author, url
+  matchType       String    // contains, notContains, equals, regex, etc.
   pattern         String
-  caseSensitive   Boolean  @default(false)
-  action          String
-  actionValue     String?
-  applyToAll      Boolean  @default(true)
-  subscriptionIds String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  caseSensitive   Boolean   @default(false)
+  action          String    // markRead, markStarred, addTag, highlight, pushToInstapaper, pushToNotion, delete
+  actionValue     String?   // 标签值或推送配置
+  applyToAll      Boolean   @default(true)
+  subscriptionIds String?   // JSON 数组
+  categoryIds     String?   // JSON 数组，支持分类级别过滤
+  matchCount      Int       @default(0) // 匹配次数统计
+  lastMatchedAt   DateTime? // 最后匹配时间
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
+  @@index([userId, isActive])
   @@map("filter_rules")
 }
 
@@ -207,4 +217,21 @@ model UserPreference {
   updatedAt           DateTime @updatedAt
 
   @@map("user_preferences")
+}
+
+model ExternalService {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  serviceType  String   // instapaper, notion, pocket
+  name         String
+  config       String   // JSON 加密存储的配置
+  isActive     Boolean  @default(true)
+  lastUsedAt   DateTime?
+  usedCount    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, serviceType])
+  @@map("external_services")
 }
