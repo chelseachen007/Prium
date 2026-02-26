@@ -1,4 +1,6 @@
-import { PrismaClient } from '@prisma/client'
+import pkg from '@prisma/client'
+
+const { PrismaClient } = pkg
 
 // 创建 Prisma 客户端实例
 const prisma = new PrismaClient({

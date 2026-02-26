@@ -12,6 +12,7 @@ const password = ref('')
 const loading = ref(false)
 const error = ref(route.query.error as string || '')
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+const SSO_URL = import.meta.env.VITE_SSO_URL || 'https://sso.example.com'
 
 async function handleLogin() {
   if (!email.value || !password.value) {
@@ -33,15 +34,15 @@ async function handleLogin() {
 }
 
 function loginWithGithub() {
-  window.location.href = `${API_URL}/api/auth/github`
+  window.location.href = `${SSO_URL}/api/oauth/github?redirect_uri=${encodeURIComponent(window.location.origin + '/auth/callback')}`
 }
 
 function loginWithGoogle() {
-  window.location.href = `${API_URL}/api/auth/google`
+  window.location.href = `${SSO_URL}/api/oauth/google?redirect_uri=${encodeURIComponent(window.location.origin + '/auth/callback')}`
 }
 
 function loginWithSSO() {
-  window.location.href = `${API_URL}/api/auth/sso`
+  window.location.href = `${SSO_URL}/api/oauth/github?redirect_uri=${encodeURIComponent(window.location.origin + '/auth/callback')}`
 }
 </script>
 
