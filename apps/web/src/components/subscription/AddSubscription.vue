@@ -22,10 +22,10 @@ const step = ref<'input' | 'discover' | 'select'>('input')
 
 // 模拟分类数据
 const categories = ref<Category[]>([
-  { id: '1', name: '前端框架', subscriptionCount: 5, unreadCount: 12 },
-  { id: '2', name: '编程语言', subscriptionCount: 3, unreadCount: 8 },
-  { id: '3', name: '工具', subscriptionCount: 4, unreadCount: 5 },
-  { id: '4', name: '设计', subscriptionCount: 2, unreadCount: 3 },
+  { id: '1', name: '前端框架', subscriptionCount: 5, unreadCount: 12, sortOrder: 0, createdAt: new Date(), updatedAt: new Date() },
+  { id: '2', name: '编程语言', subscriptionCount: 3, unreadCount: 8, sortOrder: 1, createdAt: new Date(), updatedAt: new Date() },
+  { id: '3', name: '工具', subscriptionCount: 4, unreadCount: 5, sortOrder: 2, createdAt: new Date(), updatedAt: new Date() },
+  { id: '4', name: '设计', subscriptionCount: 2, unreadCount: 3, sortOrder: 3, createdAt: new Date(), updatedAt: new Date() },
 ])
 
 // 显示状态

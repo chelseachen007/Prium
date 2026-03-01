@@ -5,8 +5,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import type { ObsidianConfig, ObsidianConnectionStatus } from '@rss-reader/shared'
-import { useApi, ApiError } from '@/composables/useApi'
+import { supabase } from '@/composables/useSupabase'
 
 /**
  * 主题类型
@@ -101,18 +100,7 @@ export interface SyncSettings {
 /**
  * 设置 Store
  *
- * 管理主题设置、显示设置和 Obsidian 配置
- *
- * @example
- * ```typescript
- * const settingsStore = useSettingsStore()
- *
- * // 设置主题
- * settingsStore.setTheme('dark')
- *
- * // 获取 Obsidian 配置
- * await settingsStore.fetchObsidianConfig()
- * ```
+ * 管理主题设置和显示设置，使用 localStorage 持久化
  */
 export const useSettingsStore = defineStore('settings', () => {
   // ============================================================================
@@ -160,12 +148,6 @@ export const useSettingsStore = defineStore('settings', () => {
     backgroundSync: localStorage.getItem('backgroundSync') === 'true',
   })
 
-  /** Obsidian 配置 */
-  const obsidianConfig = ref<ObsidianConfig | null>(null)
-
-  /** Obsidian 连接状态 */
-  const obsidianStatus = ref<ObsidianConnectionStatus | null>(null)
-
   /** 是否正在加载 */
   const isLoading = ref(false)
 
@@ -182,11 +164,6 @@ export const useSettingsStore = defineStore('settings', () => {
       return window.matchMedia('(prefers-color-scheme: dark)').matches
     }
     return theme.value === 'dark'
-  })
-
-  /** Obsidian 是否已连接 */
-  const isObsidianConnected = computed(() => {
-    return obsidianStatus.value?.isConnected || false
   })
 
   // ============================================================================
@@ -301,128 +278,31 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   /**
-   * 获取 Obsidian 配置
-   */
-  async function fetchObsidianConfig(): Promise<void> {
-    isLoading.value = true
-    error.value = null
-
-    try {
-      const api = useApi()
-      const response = await api.get<ObsidianConfig>('/obsidian/config')
-
-      if (response.success && response.data) {
-        obsidianConfig.value = response.data
-      } else {
-        error.value = response.error || '获取 Obsidian 配置失败'
-      }
-    } catch (e) {
-      if (e instanceof ApiError) {
-        error.value = e.message
-      } else {
-        error.value = '获取 Obsidian 配置时发生错误'
-      }
-    } finally {
-      isLoading.value = false
-    }
-  }
-
-  /**
-   * 更新 Obsidian 配置
-   */
-  async function updateObsidianConfig(
-    config: Partial<ObsidianConfig>
-  ): Promise<boolean> {
-    isLoading.value = true
-    error.value = null
-
-    try {
-      const api = useApi()
-      const response = await api.put<ObsidianConfig>('/obsidian/config', config)
-
-      if (response.success && response.data) {
-        obsidianConfig.value = response.data
-        return true
-      } else {
-        error.value = response.error || '更新 Obsidian 配置失败'
-        return false
-      }
-    } catch (e) {
-      if (e instanceof ApiError) {
-        error.value = e.message
-      } else {
-        error.value = '更新 Obsidian 配置时发生错误'
-      }
-      return false
-    } finally {
-      isLoading.value = false
-    }
-  }
-
-  /**
-   * 测试 Obsidian 连接
-   */
-  async function testObsidianConnection(): Promise<ObsidianConnectionStatus | null> {
-    isLoading.value = true
-    error.value = null
-
-    try {
-      const api = useApi()
-      const response = await api.post<ObsidianConnectionStatus>(
-        '/obsidian/test-connection'
-      )
-
-      if (response.success && response.data) {
-        obsidianStatus.value = response.data
-        return response.data
-      } else {
-        error.value = response.error || '测试连接失败'
-        return null
-      }
-    } catch (e) {
-      if (e instanceof ApiError) {
-        error.value = e.message
-      } else {
-        error.value = '测试连接时发生错误'
-      }
-      return null
-    } finally {
-      isLoading.value = false
-    }
-  }
-
-  /**
-   * 获取 Obsidian 连接状态
-   */
-  async function fetchObsidianStatus(): Promise<void> {
-    try {
-      const api = useApi()
-      const response = await api.get<ObsidianConnectionStatus>(
-        '/obsidian/status'
-      )
-
-      if (response.success && response.data) {
-        obsidianStatus.value = response.data
-      }
-    } catch (e) {
-      console.error('获取 Obsidian 状态失败:', e)
-    }
-  }
-
-  /**
-   * 同步设置到服务器
+   * 同步设置到 Supabase
    */
   async function syncSettingsToServer(): Promise<boolean> {
     try {
-      const api = useApi()
-      const response = await api.put('/settings', {
-        displaySettings: displaySettings.value,
-        readingSettings: readingSettings.value,
-        notificationSettings: notificationSettings.value,
-        syncSettings: syncSettings.value,
-      })
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return false
 
-      return response.success
+      const { error: supabaseError } = await supabase
+        .from('user_preferences')
+        .upsert({
+          userId: user.id,
+          displaySettings: displaySettings.value,
+          readingSettings: readingSettings.value,
+          notificationSettings: notificationSettings.value,
+          syncSettings: syncSettings.value,
+          updatedAt: new Date().toISOString(),
+        })
+
+      if (supabaseError) {
+        throw new Error(supabaseError.message)
+      }
+
+      return true
     } catch (e) {
       console.error('同步设置失败:', e)
       return false
@@ -430,55 +310,59 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   /**
-   * 从服务器加载设置
+   * 从 Supabase 加载设置
    */
   async function loadSettingsFromServer(): Promise<boolean> {
     isLoading.value = true
     error.value = null
 
     try {
-      const api = useApi()
-      const response = await api.get<{
-        displaySettings?: DisplaySettings
-        readingSettings?: ReadingSettings
-        notificationSettings?: NotificationSettings
-        syncSettings?: SyncSettings
-      }>('/settings')
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return false
 
-      if (response.success && response.data) {
-        if (response.data.displaySettings) {
+      const { data, error: supabaseError } = await supabase
+        .from('user_preferences')
+        .select('*')
+        .eq('userId', user.id)
+        .single()
+
+      if (supabaseError && supabaseError.code !== 'PGRST116') {
+        throw new Error(supabaseError.message)
+      }
+
+      if (data) {
+        if (data.displaySettings) {
           displaySettings.value = {
             ...displaySettings.value,
-            ...response.data.displaySettings,
+            ...data.displaySettings,
           }
         }
-        if (response.data.readingSettings) {
+        if (data.readingSettings) {
           readingSettings.value = {
             ...readingSettings.value,
-            ...response.data.readingSettings,
+            ...data.readingSettings,
           }
         }
-        if (response.data.notificationSettings) {
+        if (data.notificationSettings) {
           notificationSettings.value = {
             ...notificationSettings.value,
-            ...response.data.notificationSettings,
+            ...data.notificationSettings,
           }
         }
-        if (response.data.syncSettings) {
+        if (data.syncSettings) {
           syncSettings.value = {
             ...syncSettings.value,
-            ...response.data.syncSettings,
+            ...data.syncSettings,
           }
         }
-        return true
       }
-      return false
+      return true
     } catch (e) {
-      if (e instanceof ApiError) {
-        error.value = e.message
-      } else {
-        error.value = '加载设置时发生错误'
-      }
+      const message = e instanceof Error ? e.message : '加载设置失败'
+      error.value = message
+      console.error('加载设置失败:', e)
       return false
     } finally {
       isLoading.value = false
@@ -552,8 +436,6 @@ export const useSettingsStore = defineStore('settings', () => {
    */
   function $reset(): void {
     theme.value = 'system'
-    obsidianConfig.value = null
-    obsidianStatus.value = null
     isLoading.value = false
     error.value = null
     resetAllSettings()
@@ -566,14 +448,11 @@ export const useSettingsStore = defineStore('settings', () => {
     readingSettings,
     notificationSettings,
     syncSettings,
-    obsidianConfig,
-    obsidianStatus,
     isLoading,
     error,
 
     // Getters
     isDarkMode,
-    isObsidianConnected,
 
     // Actions
     setTheme,
@@ -582,10 +461,6 @@ export const useSettingsStore = defineStore('settings', () => {
     updateReadingSettings,
     updateNotificationSettings,
     updateSyncSettings,
-    fetchObsidianConfig,
-    updateObsidianConfig,
-    testObsidianConnection,
-    fetchObsidianStatus,
     syncSettingsToServer,
     loadSettingsFromServer,
     resetAllSettings,

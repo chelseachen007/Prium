@@ -115,12 +115,6 @@ const viewSubscription = (subscriptionId: string) => {
   isMobileOpen.value = false
 }
 
-// 导航到页面
-const navigateTo = (path: string) => {
-  router.push(path)
-  isMobileOpen.value = false
-}
-
 // 显示添加订阅弹窗
 const emit = defineEmits<{
   (e: 'add-subscription'): void
@@ -260,7 +254,7 @@ defineExpose({
             </div>
 
             <!-- 未读数 -->
-            <span v-if="category.unreadCount > 0" class="px-1.5 py-0.5 text-xs bg-neutral-100 text-neutral-500 rounded">
+            <span v-if="(category.unreadCount ?? 0) > 0" class="px-1.5 py-0.5 text-xs bg-neutral-100 text-neutral-500 rounded">
               {{ category.unreadCount }}
             </span>
           </div>

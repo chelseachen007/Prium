@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useFilterStore } from '@/stores/filters'
 import { useCategoryStore } from '@/stores/categories'
 import { useSubscriptionStore } from '@/stores/subscriptions'
-import type { FilterRule, FilterScope, CreateFilterRuleRequest } from '@rss-reader/shared'
+import type { FilterRule, FilterScope, CreateFilterRuleRequest } from '@/types'
 import FilterRuleEditor from '@/components/filter/FilterRuleEditor.vue'
 
 const filterStore = useFilterStore()
@@ -133,7 +133,7 @@ onMounted(async () => {
   await Promise.all([
     filterStore.fetchRules(),
     categoryStore.fetchCategories(),
-    subscriptionStore.fetchSubscriptions({ userId: '' }), // userId 从 store 内部获取
+    subscriptionStore.fetchSubscriptions(), // userId 从 store 内部获取
   ])
 })
 </script>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import ArticleCard from './ArticleCard.vue'
 import type { Article, ArticleFilter, ViewMode, SortOption } from '@/types'
 
@@ -16,7 +16,6 @@ const emit = defineEmits<{
   (e: 'load-more'): void
   (e: 'toggle-star', id: string): void
   (e: 'mark-read', id: string): void
-  (e: 'save-to-obsidian', id: string): void
   (e: 'filter-change', filter: ArticleFilter): void
   (e: 'view-change', view: ViewMode): void
   (e: 'sort-change', sort: SortOption): void
@@ -69,7 +68,6 @@ onUnmounted(() => {
 // 处理事件
 const handleToggleStar = (id: string) => emit('toggle-star', id)
 const handleMarkRead = (id: string) => emit('mark-read', id)
-const handleSaveToObsidian = (id: string) => emit('save-to-obsidian', id)
 
 const handleFilterChange = (filter: ArticleFilter) => {
   currentFilter.value = filter
@@ -193,7 +191,6 @@ const stats = computed(() => ({
           :article="article"
           @toggle-star="handleToggleStar"
           @mark-read="handleMarkRead"
-          @save-to-obsidian="handleSaveToObsidian"
         />
       </div>
 
@@ -205,7 +202,6 @@ const stats = computed(() => ({
           :article="article"
           @toggle-star="handleToggleStar"
           @mark-read="handleMarkRead"
-          @save-to-obsidian="handleSaveToObsidian"
         />
       </div>
 

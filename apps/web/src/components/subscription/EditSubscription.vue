@@ -24,7 +24,6 @@ const form = ref({
 })
 
 // 状态
-const isLoading = ref(false)
 const isSaving = ref(false)
 const error = ref('')
 

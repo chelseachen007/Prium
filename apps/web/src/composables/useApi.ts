@@ -15,7 +15,7 @@ import type {
   PaginatedResponse,
   ApiErrorDetail,
   ApiErrorCode,
-} from '@rss-reader/shared'
+} from '@/types'
 
 import router from '@/router'
 import { useAuthStore } from '@/stores/auth'

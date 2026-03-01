@@ -5,31 +5,19 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { supabase } from '@/composables/useSupabase'
 import type {
   Article,
   ArticleQueryOptions,
   ArticleStats,
   BatchAction,
   ArticleBatchResult,
-  PaginatedResponse,
-} from '@rss-reader/shared'
-import { useApi, ApiError } from '@/composables/useApi'
+} from '@/types'
 
 /**
  * 文章 Store
  *
- * 管理文章列表、当前文章、分页信息、过滤条件和标记操作
- *
- * @example
- * ```typescript
- * const articleStore = useArticleStore()
- *
- * // 获取文章列表
- * await articleStore.fetchArticles()
- *
- * // 标记文章为已读
- * await articleStore.markAsRead('article-id')
- * ```
+ * 使用 Supabase 管理文章列表、当前文章、分页信息、过滤条件和标记操作
  */
 export const useArticleStore = defineStore('articles', () => {
   // ============================================================================
@@ -86,11 +74,6 @@ export const useArticleStore = defineStore('articles', () => {
     return articles.value.filter((article) => article.isStarred)
   })
 
-  /** 已保存文章列表 */
-  const savedArticles = computed(() => {
-    return articles.value.filter((article) => article.isSaved)
-  })
-
   /** 当前过滤条件下的文章数量 */
   const filteredCount = computed(() => articles.value.length)
 
@@ -103,14 +86,11 @@ export const useArticleStore = defineStore('articles', () => {
     return !!(
       f.subscriptionId ||
       f.categoryId ||
-      f.tag ||
       f.isRead !== undefined ||
       f.isStarred !== undefined ||
-      f.isSaved !== undefined ||
       f.search ||
       f.startDate ||
-      f.endDate ||
-      f.minQualityScore
+      f.endDate
     )
   })
 
@@ -142,47 +122,93 @@ export const useArticleStore = defineStore('articles', () => {
     }
 
     try {
-      const api = useApi()
-      const queryParams: Record<string, unknown> = {
-        page: resetPage ? 1 : pagination.value.page,
-        pageSize: pagination.value.pageSize,
-        ...filters.value,
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        error.value = '用户未登录'
+        return
       }
 
-      // 处理日期参数
+      const page = resetPage ? 1 : pagination.value.page
+      const pageSize = pagination.value.pageSize
+      const from = (page - 1) * pageSize
+      const to = from + pageSize - 1
+
+      // 构建查询
+      let query = supabase
+        .from('articles')
+        .select(
+          '*, subscription:subscriptions(id, title, imageUrl)',
+          { count: 'exact' }
+        )
+        .range(from, to)
+
+      // 应用过滤条件
+      if (filters.value.subscriptionId) {
+        query = query.eq('subscriptionId', filters.value.subscriptionId)
+      }
+
+      if (filters.value.isRead !== undefined) {
+        query = query.eq('isRead', filters.value.isRead)
+      }
+
+      if (filters.value.isStarred !== undefined) {
+        query = query.eq('isStarred', filters.value.isStarred)
+      }
+
+      if (filters.value.search) {
+        query = query.or(
+          `title.ilike.%${filters.value.search}%,content.ilike.%${filters.value.search}%`
+        )
+      }
+
       if (filters.value.startDate) {
-        queryParams.startDate = filters.value.startDate.toISOString()
+        query = query.gte(
+          'publishedAt',
+          filters.value.startDate instanceof Date
+            ? filters.value.startDate.toISOString()
+            : filters.value.startDate
+        )
       }
+
       if (filters.value.endDate) {
-        queryParams.endDate = filters.value.endDate.toISOString()
+        query = query.lte(
+          'publishedAt',
+          filters.value.endDate instanceof Date
+            ? filters.value.endDate.toISOString()
+            : filters.value.endDate
+        )
       }
 
-      const response = await api.getPaginated<Article>('/articles', queryParams)
+      // 排序
+      query = query.order('publishedAt', { ascending: false })
 
-      if (response.success) {
-        if (resetPage) {
-          articles.value = response.data
-        } else {
-          articles.value = [...articles.value, ...response.data]
-        }
-        pagination.value = {
-          page: response.page,
-          pageSize: response.pageSize,
-          total: response.total,
-          totalPages: response.totalPages || Math.ceil(response.total / response.pageSize),
-          hasMore: response.hasMore ?? response.page < (response.totalPages || Math.ceil(response.total / response.pageSize)),
-        }
-        lastUpdated.value = new Date()
+      const { data, error: supabaseError, count } = await query
+
+      if (supabaseError) {
+        throw new Error(supabaseError.message)
+      }
+
+      if (resetPage) {
+        articles.value = data || []
       } else {
-        error.value = response.error || '获取文章列表失败'
+        articles.value = [...articles.value, ...(data || [])]
       }
+
+      const totalPages = Math.ceil((count || 0) / pageSize)
+      pagination.value = {
+        page,
+        pageSize,
+        total: count || 0,
+        totalPages,
+        hasMore: page < totalPages,
+      }
+      lastUpdated.value = new Date()
     } catch (e) {
-      if (e instanceof ApiError) {
-        error.value = e.message
-      } else {
-        error.value = '获取文章列表时发生错误'
-      }
-      throw e
+      const message = e instanceof Error ? e.message : '获取文章列表失败'
+      error.value = message
+      console.error('获取文章列表失败:', e)
     } finally {
       isLoading.value = false
       isLoadingMore.value = false
@@ -197,7 +223,7 @@ export const useArticleStore = defineStore('articles', () => {
       return
     }
 
-    filters.value.page = pagination.value.page + 1
+    pagination.value.page++
     await fetchArticles(filters.value, false)
   }
 
@@ -209,26 +235,28 @@ export const useArticleStore = defineStore('articles', () => {
     error.value = null
 
     try {
-      const api = useApi()
-      const response = await api.get<Article>(`/articles/${id}`)
+      const { data, error: supabaseError } = await supabase
+        .from('articles')
+        .select(
+          '*, subscription:subscriptions(id, title, imageUrl, siteUrl)'
+        )
+        .eq('id', id)
+        .single()
 
-      if (response.success && response.data) {
-        currentArticle.value = response.data
-        // 更新列表中的文章
-        const index = articles.value.findIndex((a) => a.id === id)
-        if (index !== -1) {
-          articles.value[index] = response.data
-        }
-      } else {
-        error.value = response.error || '获取文章详情失败'
+      if (supabaseError) {
+        throw new Error(supabaseError.message)
+      }
+
+      currentArticle.value = data
+      // 更新列表中的文章
+      const index = articles.value.findIndex((a) => a.id === id)
+      if (index !== -1) {
+        articles.value[index] = data
       }
     } catch (e) {
-      if (e instanceof ApiError) {
-        error.value = e.message
-      } else {
-        error.value = '获取文章详情时发生错误'
-      }
-      throw e
+      const message = e instanceof Error ? e.message : '获取文章详情失败'
+      error.value = message
+      console.error('获取文章详情失败:', e)
     } finally {
       isLoading.value = false
     }
@@ -239,11 +267,73 @@ export const useArticleStore = defineStore('articles', () => {
    */
   async function fetchStats(): Promise<void> {
     try {
-      const api = useApi()
-      const response = await api.get<ArticleStats>('/articles/stats')
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
 
-      if (response.success && response.data) {
-        stats.value = response.data
+      // 获取用户的所有订阅
+      const { data: subscriptions } = await supabase
+        .from('subscriptions')
+        .select('id')
+        .eq('userId', user.id)
+
+      const subscriptionIds = subscriptions?.map((s) => s.id) || []
+
+      if (subscriptionIds.length === 0) {
+        stats.value = {
+          total: 0,
+          totalArticles: 0,
+          unread: 0,
+          unreadArticles: 0,
+          readArticles: 0,
+          today: 0,
+          thisWeek: 0,
+          starred: 0,
+          starredArticles: 0,
+          saved: 0,
+        }
+        return
+      }
+
+      // 获取文章总数
+      const { count: totalCount } = await supabase
+        .from('articles')
+        .select('*', { count: 'exact', head: true })
+        .in('subscriptionId', subscriptionIds)
+
+      // 获取已读数
+      const { count: readCount } = await supabase
+        .from('articles')
+        .select('*', { count: 'exact', head: true })
+        .in('subscriptionId', subscriptionIds)
+        .eq('isRead', true)
+
+      // 获取未读数
+      const { count: unreadCount } = await supabase
+        .from('articles')
+        .select('*', { count: 'exact', head: true })
+        .in('subscriptionId', subscriptionIds)
+        .eq('isRead', false)
+
+      // 获取收藏数
+      const { count: starredCount } = await supabase
+        .from('articles')
+        .select('*', { count: 'exact', head: true })
+        .in('subscriptionId', subscriptionIds)
+        .eq('isStarred', true)
+
+      stats.value = {
+        total: totalCount || 0,
+        totalArticles: totalCount || 0,
+        unread: unreadCount || 0,
+        unreadArticles: unreadCount || 0,
+        readArticles: readCount || 0,
+        today: 0, // 需要额外查询
+        thisWeek: 0, // 需要额外查询
+        starred: starredCount || 0,
+        starredArticles: starredCount || 0,
+        saved: 0, // 需要额外查询
       }
     } catch (e) {
       console.error('获取文章统计信息失败:', e)
@@ -254,70 +344,60 @@ export const useArticleStore = defineStore('articles', () => {
    * 标记文章为已读
    */
   async function markAsRead(id: string): Promise<boolean> {
-    return updateArticleStatus(id, 'markRead')
+    return updateArticleField(id, 'isRead', true)
   }
 
   /**
    * 标记文章为未读
    */
   async function markAsUnread(id: string): Promise<boolean> {
-    return updateArticleStatus(id, 'markUnread')
+    return updateArticleField(id, 'isRead', false)
   }
 
   /**
    * 收藏文章
    */
   async function starArticle(id: string): Promise<boolean> {
-    return updateArticleStatus(id, 'star')
+    return updateArticleField(id, 'isStarred', true)
   }
 
   /**
    * 取消收藏文章
    */
   async function unstarArticle(id: string): Promise<boolean> {
-    return updateArticleStatus(id, 'unstar')
+    return updateArticleField(id, 'isStarred', false)
   }
 
   /**
-   * 保存文章到 Obsidian
+   * 更新文章字段的通用方法
    */
-  async function saveArticle(id: string): Promise<boolean> {
-    return updateArticleStatus(id, 'save')
-  }
-
-  /**
-   * 取消保存文章
-   */
-  async function unsaveArticle(id: string): Promise<boolean> {
-    return updateArticleStatus(id, 'unsave')
-  }
-
-  /**
-   * 更新文章状态的通用方法
-   */
-  async function updateArticleStatus(
+  async function updateArticleField(
     id: string,
-    action: BatchAction
+    field: 'isRead' | 'isStarred',
+    value: boolean
   ): Promise<boolean> {
     try {
-      const api = useApi()
-      const response = await api.post<Article>(`/articles/${id}/${action}`)
+      const { error: supabaseError } = await supabase
+        .from('articles')
+        .update({ [field]: value })
+        .eq('id', id)
 
-      if (response.success && response.data) {
-        // 更新列表中的文章
-        const index = articles.value.findIndex((a) => a.id === id)
-        if (index !== -1) {
-          articles.value[index] = response.data
-        }
-        // 更新当前文章
-        if (currentArticle.value?.id === id) {
-          currentArticle.value = response.data
-        }
-        return true
+      if (supabaseError) {
+        throw new Error(supabaseError.message)
       }
-      return false
+
+      // 更新本地状态
+      const index = articles.value.findIndex((a) => a.id === id)
+      if (index !== -1) {
+        articles.value[index] = { ...articles.value[index], [field]: value }
+      }
+      if (currentArticle.value?.id === id) {
+        currentArticle.value = { ...currentArticle.value, [field]: value }
+      }
+
+      return true
     } catch (e) {
-      console.error(`更新文章状态失败 (${action}):`, e)
+      console.error(`更新文章状态失败 (${field}):`, e)
       return false
     }
   }
@@ -333,62 +413,75 @@ export const useArticleStore = defineStore('articles', () => {
     error.value = null
 
     try {
-      const api = useApi()
-      const response = await api.post<ArticleBatchResult>('/articles/batch', {
-        articleIds,
-        action,
-      })
+      let updateData: Record<string, unknown> = {}
 
-      if (response.success && response.data) {
-        // 更新本地文章状态
-        const successIds = new Set(
-          response.data.success === response.data.success
-            ? articleIds
-            : articleIds
-        )
+      switch (action) {
+        case 'markRead':
+          updateData = { isRead: true }
+          break
+        case 'markUnread':
+          updateData = { isRead: false }
+          break
+        case 'star':
+          updateData = { isStarred: true }
+          break
+        case 'unstar':
+          updateData = { isStarred: false }
+          break
+        case 'delete':
+          // 删除操作
+          const { error: deleteError } = await supabase
+            .from('articles')
+            .delete()
+            .in('id', articleIds)
 
-        for (const id of successIds) {
-          const index = articles.value.findIndex((a) => a.id === id)
-          if (index !== -1) {
-            const article = articles.value[index]
-            switch (action) {
-              case 'markRead':
-                article.isRead = true
-                break
-              case 'markUnread':
-                article.isRead = false
-                break
-              case 'star':
-                article.isStarred = true
-                break
-              case 'unstar':
-                article.isStarred = false
-                break
-              case 'save':
-                article.isSaved = true
-                break
-              case 'unsave':
-                article.isSaved = false
-                break
-              case 'delete':
-                articles.value.splice(index, 1)
-                break
-            }
+          if (deleteError) {
+            throw new Error(deleteError.message)
+          }
+
+          // 从本地列表中移除
+          articles.value = articles.value.filter(
+            (a) => !articleIds.includes(a.id)
+          )
+
+          return {
+            success: articleIds.length,
+            failed: 0,
+            errors: [],
+          }
+      }
+
+      // 执行批量更新
+      const { error: updateError } = await supabase
+        .from('articles')
+        .update(updateData)
+        .in('id', articleIds)
+
+      if (updateError) {
+        throw new Error(updateError.message)
+      }
+
+      // 更新本地状态
+      for (const id of articleIds) {
+        const index = articles.value.findIndex((a) => a.id === id)
+        if (index !== -1) {
+          articles.value[index] = {
+            ...articles.value[index],
+            ...updateData,
           }
         }
+      }
 
-        return response.data
-      } else {
-        error.value = response.error || '批量操作失败'
-        return null
+      return {
+        success: articleIds.length,
+        failed: 0,
+        errors: [],
       }
     } catch (e) {
-      if (e instanceof ApiError) {
-        error.value = e.message
-      } else {
-        error.value = '批量操作时发生错误'
-      }
-      throw e
+      const message = e instanceof Error ? e.message : '批量操作失败'
+      error.value = message
+      console.error('批量操作失败:', e)
+      return null
     } finally {
       isLoading.value = false
     }
@@ -405,41 +498,72 @@ export const useArticleStore = defineStore('articles', () => {
     error.value = null
 
     try {
-      const api = useApi()
-      const response = await api.post('/articles/mark-all-read', options)
-
-      if (response.success) {
-        // 更新本地状态
-        for (const article of articles.value) {
-          if (
-            !options?.subscriptionId ||
-            article.subscriptionId === options.subscriptionId
-          ) {
-            if (
-              !options?.categoryId ||
-              // 假设文章有 categoryId 属性，如果没有需要通过 subscription 查找
-              true
-            ) {
-              article.isRead = true
-            }
-          }
-        }
-
-        // 刷新统计信息
-        await fetchStats()
-
-        return true
-      } else {
-        error.value = response.error || '标记全部已读失败'
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        error.value = '用户未登录'
         return false
       }
-    } catch (e) {
-      if (e instanceof ApiError) {
-        error.value = e.message
-      } else {
-        error.value = '标记全部已读时发生错误'
+
+      // 获取用户的订阅 ID 列表
+      let subscriptionQuery = supabase
+        .from('subscriptions')
+        .select('id')
+        .eq('userId', user.id)
+
+      if (options?.categoryId) {
+        subscriptionQuery = subscriptionQuery.eq('categoryId', options.categoryId)
       }
-      throw e
+
+      const { data: subscriptions } = await subscriptionQuery
+      const subscriptionIds = subscriptions?.map((s) => s.id) || []
+
+      if (subscriptionIds.length === 0) {
+        return true
+      }
+
+      // 批量更新文章
+      let updateQuery = supabase
+        .from('articles')
+        .update({ isRead: true })
+        .in('subscriptionId', subscriptionIds)
+        .eq('isRead', false)
+
+      if (options?.subscriptionId) {
+        updateQuery = updateQuery.eq('subscriptionId', options.subscriptionId)
+      }
+
+      const { error: updateError } = await updateQuery
+
+      if (updateError) {
+        throw new Error(updateError.message)
+      }
+
+      // 更新本地状态
+      for (const article of articles.value) {
+        if (
+          !options?.subscriptionId ||
+          article.subscriptionId === options.subscriptionId
+        ) {
+          if (
+            !options?.categoryId ||
+            subscriptionIds.includes(article.subscriptionId)
+          ) {
+            article.isRead = true
+          }
+        }
+      }
+
+      // 刷新统计信息
+      await fetchStats()
+
+      return true
+    } catch (e) {
+      const message = e instanceof Error ? e.message : '标记全部已读失败'
+      error.value = message
+      console.error('标记全部已读失败:', e)
+      return false
     } finally {
       isLoading.value = false
     }
@@ -540,7 +664,6 @@ export const useArticleStore = defineStore('articles', () => {
     totalCount,
     unreadArticles,
     starredArticles,
-    savedArticles,
     filteredCount,
     hasMore,
     hasActiveFilters,
@@ -555,9 +678,7 @@ export const useArticleStore = defineStore('articles', () => {
     markAsUnread,
     starArticle,
     unstarArticle,
-    saveArticle,
-    unsaveArticle,
-    updateArticleStatus,
+    updateArticleField,
     batchAction,
     markAllAsRead,
     setCurrentArticle,

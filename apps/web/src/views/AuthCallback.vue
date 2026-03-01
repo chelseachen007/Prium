@@ -1,32 +1,32 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
-const route = useRoute()
 const authStore = useAuthStore()
 
 onMounted(async () => {
-  const token = route.query.token as string
-  const userJson = route.query.user as string
+  try {
+    // Supabase 会自动处理 OAuth 回调
+    // 等待认证状态初始化完成
+    await authStore.initialize()
 
-  if (token) {
-    authStore.setToken(token)
-
-    // 如果有 user 参数，解析并设置用户信息
-    if (userJson) {
-      try {
-        const user = JSON.parse(decodeURIComponent(userJson))
-        authStore.setUser(user)
-      } catch (e) {
-        console.error('Failed to parse user info:', e)
-      }
+    if (authStore.isAuthenticated) {
+      router.push('/')
+    } else {
+      // 如果没有认证成功，等待一小段时间再检查
+      setTimeout(() => {
+        if (authStore.isAuthenticated) {
+          router.push('/')
+        } else {
+          router.push('/login?error=auth_failed')
+        }
+      }, 1000)
     }
-
-    router.push('/')
-  } else {
-    router.push('/login?error=no_token')
+  } catch (error) {
+    console.error('Auth callback error:', error)
+    router.push('/login?error=auth_failed')
   }
 })
 </script>

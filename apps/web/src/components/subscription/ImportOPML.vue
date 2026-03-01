@@ -207,7 +207,7 @@ const startImport = async () => {
     for (const categoryName of categoryNames) {
       if (!categoryMap.has(categoryName)) {
         try {
-          const createRes = await api.post('/categories', {
+          const createRes = await api.post<{ id: string }>('/categories', {
             name: categoryName,
           })
           if (createRes.success && createRes.data) {

@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import SaveToObsidian from '@/components/obsidian/SaveToObsidian.vue'
 import type { Article } from '@/types'
 
 const props = defineProps<{
@@ -14,7 +13,6 @@ const props = defineProps<{
 const router = useRouter()
 
 // 状态
-const showObsidianPanel = ref(false)
 const fontSize = ref(16)
 const contentRef = ref<HTMLElement | null>(null)
 
@@ -27,7 +25,7 @@ const emit = defineEmits<{
 }>()
 
 // 格式化日期
-const formatDate = (date: string) => {
+const formatDate = (date: string | Date) => {
   return new Date(date).toLocaleDateString('zh-CN', {
     year: 'numeric',
     month: 'long',
@@ -40,18 +38,6 @@ const formatDate = (date: string) => {
 // 切换收藏
 const toggleStar = () => {
   emit('toggle-star')
-}
-
-// 标记已读
-const markRead = () => {
-  emit('mark-read')
-}
-
-// 打开原文
-const openOriginal = () => {
-  if (props.article?.url) {
-    window.open(props.article.url, '_blank', 'noopener,noreferrer')
-  }
 }
 
 // 分享
@@ -72,11 +58,6 @@ const share = async () => {
     await navigator.clipboard.writeText(props.article.url)
     alert('链接已复制到剪贴板')
   }
-}
-
-// 显示 Obsidian 保存面板
-const showSavePanel = () => {
-  showObsidianPanel.value = true
 }
 
 // 上一篇
@@ -130,9 +111,8 @@ onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
 })
 
-// 监听文章变化，重置状态
+// 监听文章变化，滚动到顶部
 watch(() => props.article, () => {
-  showObsidianPanel.value = false
   // 滚动到顶部
   if (contentRef.value) {
     contentRef.value.scrollTop = 0
@@ -210,17 +190,6 @@ watch(() => props.article, () => {
             </svg>
           </button>
 
-          <!-- 保存到 Obsidian -->
-          <button
-            class="p-2 text-neutral-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-            title="保存到 Obsidian"
-            @click="showSavePanel"
-          >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-          </button>
-
           <!-- 打开原文 -->
           <a
             :href="article?.url"
@@ -274,7 +243,7 @@ watch(() => props.article, () => {
             <!-- 元信息 -->
             <div class="flex flex-wrap items-center gap-3 text-sm text-neutral-500 mb-4">
               <!-- 来源 -->
-              <span class="flex items-center gap-1.5">
+              <span v-if="article.source" class="flex items-center gap-1.5">
                 <img
                   v-if="article.source.favicon"
                   :src="article.source.favicon"
@@ -393,26 +362,8 @@ watch(() => props.article, () => {
         </button>
       </div>
     </div>
-
-    <!-- Obsidian 保存面板 -->
-    <transition name="slide">
-      <SaveToObsidian
-        v-if="showObsidianPanel && article"
-        :article="article"
-        @close="showObsidianPanel = false"
-      />
-    </transition>
   </div>
 </template>
 
 <style scoped>
-.slide-enter-active,
-.slide-leave-active {
-  transition: transform 0.3s ease;
-}
-
-.slide-enter-from,
-.slide-leave-to {
-  transform: translateX(100%);
-}
 </style>

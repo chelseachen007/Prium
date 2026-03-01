@@ -5,6 +5,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { supabase } from '@/composables/useSupabase'
 import type {
   Subscription,
   CreateSubscriptionRequest,
@@ -12,24 +13,12 @@ import type {
   SubscriptionQueryOptions,
   SubscriptionStats,
   SubscriptionImportResult,
-} from '@rss-reader/shared'
-import { useApi, ApiError } from '@/composables/useApi'
+} from '@/types'
 
 /**
  * 订阅 Store
  *
- * 管理订阅列表、当前订阅、加载状态和 CRUD 操作
- *
- * @example
- * ```typescript
- * const subscriptionStore = useSubscriptionStore()
- *
- * // 获取订阅列表
- * await subscriptionStore.fetchSubscriptions()
- *
- * // 创建新订阅
- * await subscriptionStore.createSubscription({ feedUrl: 'https://...' })
- * ```
+ * 使用 Supabase 管理订阅列表、当前订阅、加载状态和 CRUD 操作
  */
 export const useSubscriptionStore = defineStore('subscriptions', () => {
   // ============================================================================
@@ -76,7 +65,7 @@ export const useSubscriptionStore = defineStore('subscriptions', () => {
 
   /** 按分类分组的订阅 */
   const subscriptionsByCategory = computed(() => {
-    const grouped = new Map<string, Subscription[]>()
+    const grouped = new Map<string | undefined, Subscription[]>()
     for (const sub of subscriptions.value) {
       const list = grouped.get(sub.categoryId) || []
       list.push(sub)
@@ -177,22 +166,40 @@ export const useSubscriptionStore = defineStore('subscriptions', () => {
     }
 
     try {
-      const api = useApi()
-      const response = await api.get<Subscription[]>('/subscriptions')
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        error.value = '用户未登录'
+        return
+      }
 
-      if (response.success && response.data) {
-        subscriptions.value = response.data
-        lastUpdated.value = new Date()
-      } else {
-        error.value = response.error || '获取订阅列表失败'
+      let query = supabase
+        .from('subscriptions')
+        .select('*, category:categories(*)')
+        .eq('userId', user.id)
+
+      // 应用筛选条件
+      if (options?.categoryId) {
+        query = query.eq('categoryId', options.categoryId)
       }
+
+      if (options?.isActive !== undefined) {
+        query = query.eq('isActive', options.isActive)
+      }
+
+      const { data, error: supabaseError } = await query
+
+      if (supabaseError) {
+        throw new Error(supabaseError.message)
+      }
+
+      subscriptions.value = data || []
+      lastUpdated.value = new Date()
     } catch (e) {
-      if (e instanceof ApiError) {
-        error.value = e.message
-      } else {
-        error.value = '获取订阅列表时发生错误'
-      }
-      throw e
+      const message = e instanceof Error ? e.message : '获取订阅列表失败'
+      error.value = message
+      console.error('获取订阅列表失败:', e)
     } finally {
       isLoading.value = false
     }
@@ -206,26 +213,26 @@ export const useSubscriptionStore = defineStore('subscriptions', () => {
     error.value = null
 
     try {
-      const api = useApi()
-      const response = await api.get<Subscription>(`/subscriptions/${id}`)
+      const { data, error: supabaseError } = await supabase
+        .from('subscriptions')
+        .select('*, category:categories(*)')
+        .eq('id', id)
+        .single()
 
-      if (response.success && response.data) {
-        currentSubscription.value = response.data
-        // 更新列表中的订阅
-        const index = subscriptions.value.findIndex((s) => s.id === id)
-        if (index !== -1) {
-          subscriptions.value[index] = response.data
-        }
-      } else {
-        error.value = response.error || '获取订阅详情失败'
+      if (supabaseError) {
+        throw new Error(supabaseError.message)
+      }
+
+      currentSubscription.value = data
+      // 更新列表中的订阅
+      const index = subscriptions.value.findIndex((s) => s.id === id)
+      if (index !== -1) {
+        subscriptions.value[index] = data
       }
     } catch (e) {
-      if (e instanceof ApiError) {
-        error.value = e.message
-      } else {
-        error.value = '获取订阅详情时发生错误'
-      }
-      throw e
+      const message = e instanceof Error ? e.message : '获取订阅详情失败'
+      error.value = message
+      console.error('获取订阅详情失败:', e)
     } finally {
       isLoading.value = false
     }
@@ -241,23 +248,38 @@ export const useSubscriptionStore = defineStore('subscriptions', () => {
     error.value = null
 
     try {
-      const api = useApi()
-      const response = await api.post<Subscription>('/subscriptions', data)
-
-      if (response.success && response.data) {
-        subscriptions.value.push(response.data)
-        return response.data
-      } else {
-        error.value = response.error || '创建订阅失败'
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        error.value = '用户未登录'
         return null
       }
-    } catch (e) {
-      if (e instanceof ApiError) {
-        error.value = e.message
-      } else {
-        error.value = '创建订阅时发生错误'
+
+      const { data: subscription, error: supabaseError } = await supabase
+        .from('subscriptions')
+        .insert({
+          userId: user.id,
+          feedUrl: data.feedUrl,
+          title: data.title || '',
+          siteUrl: data.siteUrl,
+          categoryId: data.categoryId,
+          isActive: true,
+        })
+        .select()
+        .single()
+
+      if (supabaseError) {
+        throw new Error(supabaseError.message)
       }
-      throw e
+
+      subscriptions.value.push(subscription)
+      return subscription
+    } catch (e) {
+      const message = e instanceof Error ? e.message : '创建订阅失败'
+      error.value = message
+      console.error('创建订阅失败:', e)
+      return null
     } finally {
       isLoading.value = false
     }
@@ -274,32 +296,33 @@ export const useSubscriptionStore = defineStore('subscriptions', () => {
     error.value = null
 
     try {
-      const api = useApi()
-      const response = await api.put<Subscription>(
-        `/subscriptions/${id}`,
-        data
-      )
+      const { data: subscription, error: supabaseError } = await supabase
+        .from('subscriptions')
+        .update({
+          ...data,
+          updatedAt: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .select()
+        .single()
 
-      if (response.success && response.data) {
-        const index = subscriptions.value.findIndex((s) => s.id === id)
-        if (index !== -1) {
-          subscriptions.value[index] = response.data
-        }
-        if (currentSubscription.value?.id === id) {
-          currentSubscription.value = response.data
-        }
-        return response.data
-      } else {
-        error.value = response.error || '更新订阅失败'
-        return null
+      if (supabaseError) {
+        throw new Error(supabaseError.message)
       }
+
+      const index = subscriptions.value.findIndex((s) => s.id === id)
+      if (index !== -1) {
+        subscriptions.value[index] = subscription
+      }
+      if (currentSubscription.value?.id === id) {
+        currentSubscription.value = subscription
+      }
+      return subscription
     } catch (e) {
-      if (e instanceof ApiError) {
-        error.value = e.message
-      } else {
-        error.value = '更新订阅时发生错误'
-      }
-      throw e
+      const message = e instanceof Error ? e.message : '更新订阅失败'
+      error.value = message
+      console.error('更新订阅失败:', e)
+      return null
     } finally {
       isLoading.value = false
     }
@@ -313,26 +336,25 @@ export const useSubscriptionStore = defineStore('subscriptions', () => {
     error.value = null
 
     try {
-      const api = useApi()
-      const response = await api.delete(`/subscriptions/${id}`)
+      const { error: supabaseError } = await supabase
+        .from('subscriptions')
+        .delete()
+        .eq('id', id)
 
-      if (response.success) {
-        subscriptions.value = subscriptions.value.filter((s) => s.id !== id)
-        if (currentSubscription.value?.id === id) {
-          currentSubscription.value = null
-        }
-        return true
-      } else {
-        error.value = response.error || '删除订阅失败'
-        return false
+      if (supabaseError) {
+        throw new Error(supabaseError.message)
       }
+
+      subscriptions.value = subscriptions.value.filter((s) => s.id !== id)
+      if (currentSubscription.value?.id === id) {
+        currentSubscription.value = null
+      }
+      return true
     } catch (e) {
-      if (e instanceof ApiError) {
-        error.value = e.message
-      } else {
-        error.value = '删除订阅时发生错误'
-      }
-      throw e
+      const message = e instanceof Error ? e.message : '删除订阅失败'
+      error.value = message
+      console.error('删除订阅失败:', e)
+      return false
     } finally {
       isLoading.value = false
     }
@@ -340,34 +362,62 @@ export const useSubscriptionStore = defineStore('subscriptions', () => {
 
   /**
    * 刷新订阅（重新抓取）
+   * 注意：RSS 解析需要通过 Edge Function 代理
    */
   async function refreshSubscription(id: string): Promise<boolean> {
     isRefreshing.value = true
     error.value = null
 
     try {
-      const api = useApi()
-      const response = await api.post<Subscription>(
-        `/subscriptions/${id}/refresh`
-      )
-
-      if (response.success && response.data) {
-        const index = subscriptions.value.findIndex((s) => s.id === id)
-        if (index !== -1) {
-          subscriptions.value[index] = response.data
-        }
-        return true
-      } else {
-        error.value = response.error || '刷新订阅失败'
+      const subscription = subscriptions.value.find((s) => s.id === id)
+      if (!subscription) {
+        error.value = '订阅不存在'
         return false
       }
-    } catch (e) {
-      if (e instanceof ApiError) {
-        error.value = e.message
-      } else {
-        error.value = '刷新订阅时发生错误'
+
+      // 通过 Edge Function 获取 RSS 并解析
+      const response = await fetch(
+        `/api/proxy/rss?url=${encodeURIComponent(subscription.feedUrl)}`
+      )
+      if (!response.ok) {
+        throw new Error('获取 RSS 失败')
       }
-      throw e
+
+      const xmlText = await response.text()
+      const articles = parseRSSFeed(xmlText)
+
+      // 将新文章插入数据库
+      for (const article of articles) {
+        await supabase.from('articles').upsert(
+          {
+            subscriptionId: id,
+            title: article.title,
+            content: article.content,
+            url: article.url,
+            imageUrl: article.imageUrl,
+            author: article.author,
+            publishedAt: article.publishedAt,
+          },
+          {
+            onConflict: 'subscriptionId,url',
+          }
+        )
+      }
+
+      // 更新订阅的最后抓取时间
+      await supabase
+        .from('subscriptions')
+        .update({ lastFetchedAt: new Date().toISOString() })
+        .eq('id', id)
+
+      // 重新获取订阅详情
+      await fetchSubscription(id)
+      return true
+    } catch (e) {
+      const message = e instanceof Error ? e.message : '刷新订阅失败'
+      error.value = message
+      console.error('刷新订阅失败:', e)
+      return false
     } finally {
       isRefreshing.value = false
     }
@@ -381,24 +431,17 @@ export const useSubscriptionStore = defineStore('subscriptions', () => {
     error.value = null
 
     try {
-      const api = useApi()
-      const response = await api.post('/subscriptions/refresh-all')
-
-      if (response.success) {
-        // 重新获取订阅列表
-        await fetchSubscriptions()
-        return true
-      } else {
-        error.value = response.error || '刷新所有订阅失败'
-        return false
-      }
+      const activeSubscriptions = subscriptions.value.filter((s) => s.isActive)
+      await Promise.all(
+        activeSubscriptions.map((sub) => refreshSubscription(sub.id))
+      )
+      await fetchSubscriptions()
+      return true
     } catch (e) {
-      if (e instanceof ApiError) {
-        error.value = e.message
-      } else {
-        error.value = '刷新所有订阅时发生错误'
-      }
-      throw e
+      const message = e instanceof Error ? e.message : '刷新所有订阅失败'
+      error.value = message
+      console.error('刷新所有订阅失败:', e)
+      return false
     } finally {
       isRefreshing.value = false
     }
@@ -409,14 +452,33 @@ export const useSubscriptionStore = defineStore('subscriptions', () => {
    */
   async function fetchSubscriptionStats(id: string): Promise<void> {
     try {
-      const api = useApi()
-      const response = await api.get<SubscriptionStats>(
-        `/subscriptions/${id}/stats`
-      )
+      // 获取文章总数
+      const { count: totalCount } = await supabase
+        .from('articles')
+        .select('*', { count: 'exact', head: true })
+        .eq('subscriptionId', id)
 
-      if (response.success && response.data) {
-        subscriptionStats.value.set(id, response.data)
-      }
+      // 获取未读数
+      const { count: unreadCount } = await supabase
+        .from('articles')
+        .select('*', { count: 'exact', head: true })
+        .eq('subscriptionId', id)
+        .eq('isRead', false)
+
+      // 获取收藏数
+      const { count: starredCount } = await supabase
+        .from('articles')
+        .select('*', { count: 'exact', head: true })
+        .eq('subscriptionId', id)
+        .eq('isStarred', true)
+
+      subscriptionStats.value.set(id, {
+        subscriptionId: id,
+        totalArticles: totalCount || 0,
+        unreadArticles: unreadCount || 0,
+        starredArticles: starredCount || 0,
+        savedArticles: 0, // 需要额外查询
+      })
     } catch (e) {
       console.error('获取订阅统计信息失败:', e)
     }
@@ -432,35 +494,63 @@ export const useSubscriptionStore = defineStore('subscriptions', () => {
     error.value = null
 
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-
-      const api = useApi()
-      const response = await api.post<SubscriptionImportResult>(
-        '/subscriptions/import',
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        }
-      )
-
-      if (response.success && response.data) {
-        // 刷新订阅列表
-        await fetchSubscriptions()
-        return response.data
-      } else {
-        error.value = response.error || '导入订阅失败'
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        error.value = '用户未登录'
         return null
       }
-    } catch (e) {
-      if (e instanceof ApiError) {
-        error.value = e.message
-      } else {
-        error.value = '导入订阅时发生错误'
+
+      const text = await file.text()
+      const parser = new DOMParser()
+      const doc = parser.parseFromString(text, 'application/xml')
+
+      const outlines = doc.querySelectorAll('outline[xmlUrl]')
+      const result: SubscriptionImportResult = {
+        imported: 0,
+        failed: 0,
+        skipped: 0,
+        errors: [],
       }
-      throw e
+
+      for (const outline of outlines) {
+        try {
+          const feedUrl = outline.getAttribute('xmlUrl')!
+          const title = outline.getAttribute('title') || outline.getAttribute('text') || ''
+
+          const { error: insertError } = await supabase
+            .from('subscriptions')
+            .insert({
+              userId: user.id,
+              feedUrl,
+              title,
+              isActive: true,
+            })
+
+          if (insertError) {
+            result.failed++
+            result.errors.push({ feedUrl, error: `导入 ${title} 失败: ${insertError.message}` })
+          } else {
+            result.imported++
+          }
+        } catch (e) {
+          result.failed++
+          result.errors.push({
+            feedUrl: '',
+            error: `导入失败: ${e instanceof Error ? e.message : '未知错误'}`,
+          })
+        }
+      }
+
+      // 刷新订阅列表
+      await fetchSubscriptions()
+      return result
+    } catch (e) {
+      const message = e instanceof Error ? e.message : '导入订阅失败'
+      error.value = message
+      console.error('导入订阅失败:', e)
+      return null
     } finally {
       isLoading.value = false
     }
@@ -471,14 +561,12 @@ export const useSubscriptionStore = defineStore('subscriptions', () => {
    */
   async function exportSubscriptions(): Promise<Blob | null> {
     try {
-      const api = useApi()
-      const response = await api.client.get('/subscriptions/export', {
-        responseType: 'blob',
-      })
-      return response.data
+      const opml = generateOPML(subscriptions.value)
+      return new Blob([opml], { type: 'application/xml' })
     } catch (e) {
       error.value = '导出订阅失败'
-      throw e
+      console.error('导出订阅失败:', e)
+      return null
     }
   }
 
@@ -560,3 +648,95 @@ export const useSubscriptionStore = defineStore('subscriptions', () => {
     $reset,
   }
 })
+
+/**
+ * 解析 RSS Feed
+ * 注意：这是一个简化的解析器，完整实现应使用 rss-parser
+ */
+function parseRSSFeed(xmlText: string): Array<{
+  title: string
+  content: string
+  url: string
+  imageUrl?: string
+  author?: string
+  publishedAt?: string
+}> {
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(xmlText, 'application/xml')
+  const items = doc.querySelectorAll('item')
+  const articles: Array<{
+    title: string
+    content: string
+    url: string
+    imageUrl?: string
+    author?: string
+    publishedAt?: string
+  }> = []
+
+  items.forEach((item) => {
+    const title = item.querySelector('title')?.textContent || ''
+    const content =
+      item.querySelector('content\\:encoded')?.textContent ||
+      item.querySelector('description')?.textContent ||
+      ''
+    const url = item.querySelector('link')?.textContent || ''
+    const author = item.querySelector('author')?.textContent || undefined
+    const publishedAt =
+      item.querySelector('pubDate')?.textContent ||
+      item.querySelector('published')?.textContent ||
+      undefined
+
+    // 提取图片
+    const contentEncoded = item.querySelector('content\\:encoded')?.textContent || ''
+    const imgMatch = contentEncoded.match(/<img[^>]+src=["']([^"']+)["']/i)
+    const imageUrl = imgMatch ? imgMatch[1] : undefined
+
+    if (url) {
+      articles.push({
+        title,
+        content,
+        url,
+        imageUrl,
+        author,
+        publishedAt,
+      })
+    }
+  })
+
+  return articles
+}
+
+/**
+ * 生成 OPML 内容
+ */
+function generateOPML(subscriptions: Subscription[]): string {
+  const outlines = subscriptions
+    .map(
+      (sub) =>
+        `<outline type="rss" text="${escapeXml(sub.title)}" title="${escapeXml(sub.title)}" xmlUrl="${escapeXml(sub.feedUrl)}" htmlUrl="${escapeXml(sub.siteUrl || '')}" />`
+    )
+    .join('\n    ')
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head>
+    <title>RSS Subscriptions</title>
+    <dateCreated>${new Date().toISOString()}</dateCreated>
+  </head>
+  <body>
+    ${outlines}
+  </body>
+</opml>`
+}
+
+/**
+ * 转义 XML 特殊字符
+ */
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+}

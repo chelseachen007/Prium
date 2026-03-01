@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useApi } from '@/composables/useApi'
+import { useArticleStore } from '@/stores/articles'
 import ArticleViewComponent from '@/components/article/ArticleView.vue'
 import type { Article } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
-const api = useApi()
+const articleStore = useArticleStore()
 
 const articleId = computed(() => route.params.id as string)
 
@@ -28,14 +28,14 @@ const loadArticle = async () => {
   error.value = ''
 
   try {
-    const response = await api.get<any>(`/articles/${articleId.value}`)
+    await articleStore.fetchArticle(articleId.value)
 
-    if (response.success && response.data) {
-      const a = response.data
+    if (articleStore.currentArticle) {
+      const a = articleStore.currentArticle as any
       currentArticle.value = {
         id: a.id,
         title: a.title,
-        summary: a.summary || a.contentText?.substring(0, 200) || '',
+        summary: a.summary || '',
         content: a.content || '',
         source: {
           id: a.subscriptionId,
@@ -45,16 +45,15 @@ const loadArticle = async () => {
         },
         author: a.author,
         url: a.url,
-        publishedAt: a.publishedAt || a.createdAt,
-        readTime: a.readingTime ? `${a.readingTime} 分钟` : undefined,
+        publishedAt: a.publishedAt,
+        readTime: a.readingTime ? Number(a.readingTime) : undefined,
         isRead: a.isRead,
         isStarred: a.isStarred,
+        isSaved: a.isSaved || false,
+        subscriptionId: a.subscriptionId,
         tags: a.aiTags || [],
         coverImage: a.imageUrl,
       }
-
-      // 加载上一篇和下一篇
-      loadAdjacentArticles()
 
       // 自动标记已读
       if (!a.isRead) {
@@ -71,44 +70,18 @@ const loadArticle = async () => {
   }
 }
 
-// 加载相邻文章
-const loadAdjacentArticles = async () => {
-  try {
-    const [prevRes, nextRes] = await Promise.all([
-      api.get<any>(`/articles/${articleId.value}/previous`),
-      api.get<any>(`/articles/${articleId.value}/next`),
-    ])
-
-    if (prevRes.success && prevRes.data) {
-      prevArticleId.value = prevRes.data.id
-    } else {
-      prevArticleId.value = undefined
-    }
-
-    if (nextRes.success && nextRes.data) {
-      nextArticleId.value = nextRes.data.id
-    } else {
-      nextArticleId.value = undefined
-    }
-  } catch (err) {
-    console.error('Load adjacent articles error:', err)
-  }
-}
-
 // 切换收藏
 const toggleStar = async () => {
   if (!currentArticle.value) return
 
-  try {
-    const response = await api.put(`/articles/${articleId.value}/star`, {
-      isStarred: !currentArticle.value.isStarred,
-    })
+  if (currentArticle.value.isStarred) {
+    await articleStore.unstarArticle(articleId.value)
+  } else {
+    await articleStore.starArticle(articleId.value)
+  }
 
-    if (response.success) {
-      currentArticle.value.isStarred = !currentArticle.value.isStarred
-    }
-  } catch (err) {
-    console.error('Toggle star error:', err)
+  if (currentArticle.value) {
+    currentArticle.value.isStarred = !currentArticle.value.isStarred
   }
 }
 
@@ -116,16 +89,9 @@ const toggleStar = async () => {
 const markRead = async () => {
   if (!currentArticle.value || currentArticle.value.isRead) return
 
-  try {
-    const response = await api.put(`/articles/${articleId.value}/read`, {
-      isRead: true,
-    })
-
-    if (response.success) {
-      currentArticle.value.isRead = true
-    }
-  } catch (err) {
-    console.error('Mark read error:', err)
+  await articleStore.markAsRead(articleId.value)
+  if (currentArticle.value) {
+    currentArticle.value.isRead = true
   }
 }
 

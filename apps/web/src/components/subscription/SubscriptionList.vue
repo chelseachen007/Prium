@@ -85,7 +85,9 @@ const groupedSubscriptions = computed(() => {
       return a.title.localeCompare(b.title)
     }
     // 默认按更新时间
-    return new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()
+    const aTime = a.lastUpdated ? new Date(a.lastUpdated).getTime() : 0
+    const bTime = b.lastUpdated ? new Date(b.lastUpdated).getTime() : 0
+    return bTime - aTime
   }
 
   Object.keys(groups).forEach(key => {
@@ -105,7 +107,7 @@ const filteredSubscriptions = computed(() => {
     const query = searchQuery.value.toLowerCase()
     result = result.filter(s =>
       s.title.toLowerCase().includes(query) ||
-      s.url.toLowerCase().includes(query) ||
+      (s.url?.toLowerCase().includes(query) ?? false) ||
       s.description?.toLowerCase().includes(query)
     )
   }
@@ -121,10 +123,14 @@ const filteredSubscriptions = computed(() => {
       result.sort((a, b) => a.title.localeCompare(b.title))
       break
     case 'unread':
-      result.sort((a, b) => b.unreadCount - a.unreadCount)
+      result.sort((a, b) => (b.unreadCount ?? 0) - (a.unreadCount ?? 0))
       break
     case 'updated':
-      result.sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime())
+      result.sort((a, b) => {
+        const aTime = a.lastUpdated ? new Date(a.lastUpdated).getTime() : 0
+        const bTime = b.lastUpdated ? new Date(b.lastUpdated).getTime() : 0
+        return bTime - aTime
+      })
       break
   }
 

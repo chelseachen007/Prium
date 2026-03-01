@@ -9,7 +9,7 @@ import type {
   FilterAction,
   MatchCondition,
   CreateFilterRuleRequest,
-} from '@rss-reader/shared'
+} from '@/types'
 
 const props = defineProps<{
   rule: FilterRule | null

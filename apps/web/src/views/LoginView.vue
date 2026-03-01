@@ -11,7 +11,6 @@ const email = ref('')
 const password = ref('')
 const loading = ref(false)
 const error = ref(route.query.error as string || '')
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 const SSO_URL = import.meta.env.VITE_SSO_URL || 'https://sso.example.com'
 
 async function handleLogin() {

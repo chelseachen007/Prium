@@ -83,14 +83,6 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
-        path: 'obsidian',
-        name: 'settings-obsidian',
-        component: () => import('@/views/SettingsObsidianView.vue'),
-        meta: {
-          title: 'Obsidian 配置',
-        },
-      },
-      {
         path: 'notifications',
         name: 'settings-notifications',
         component: () => import('@/views/SettingsNotificationsView.vue'),
@@ -124,7 +116,7 @@ const router = createRouter({
 })
 
 // 路由守卫
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, _from, next) => {
   // 设置页面标题
   const title = to.meta.title as string | undefined
   document.title = title ? `${title} - RSS Reader` : 'RSS Reader'

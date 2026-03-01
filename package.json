@@ -2,15 +2,13 @@
   "name": "rss-reader",
   "version": "1.0.0",
   "private": true,
-  "description": "RSS Reader Monorepo",
+  "description": "RSS Reader - Pure Frontend Application",
   "scripts": {
-    "dev": "pnpm run dev:server & pnpm run dev:web",
-    "dev:web": "pnpm --filter rss-reader-web dev",
-    "dev:server": "pnpm --filter @rss-reader/server dev",
-    "build": "pnpm -r build",
-    "build:shared": "pnpm --filter @rss-reader/shared build",
-    "build:web": "pnpm --filter rss-reader-web build",
-    "build:server": "pnpm --filter @rss-reader/server build"
+    "dev": "cd apps/web && pnpm dev",
+    "build": "cd apps/web && pnpm build",
+    "preview": "cd apps/web && pnpm preview",
+    "lint": "cd apps/web && pnpm lint",
+    "type-check": "cd apps/web && pnpm type-check"
   },
   "devDependencies": {
     "typescript": "^5.3.0"

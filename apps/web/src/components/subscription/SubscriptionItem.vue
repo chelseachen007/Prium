@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 import type { Subscription } from '@/types'
 
 const props = defineProps<{
@@ -24,7 +23,8 @@ const emit = defineEmits<{
 }>()
 
 // 格式化日期
-const formatDate = (date: string) => {
+const formatDate = (date: string | Date | undefined) => {
+  if (!date) return ''
   return new Date(date).toLocaleDateString('zh-CN', {
     month: 'short',
     day: 'numeric',
@@ -85,10 +85,10 @@ const handleClick = () => {
       <div class="flex items-center gap-4 text-sm">
         <!-- 未读数 -->
         <div class="flex items-center gap-1.5">
-          <span class="px-2 py-0.5 text-xs font-medium rounded-full" :class="subscription.unreadCount > 0
+          <span class="px-2 py-0.5 text-xs font-medium rounded-full" :class="(subscription.unreadCount ?? 0) > 0
             ? 'bg-primary-100 text-primary-700'
             : 'bg-neutral-100 text-neutral-500'">
-            {{ subscription.unreadCount }} 未读
+            {{ subscription.unreadCount ?? 0 }} 未读
           </span>
         </div>
 

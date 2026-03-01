@@ -11,7 +11,7 @@ const props = defineProps<{
 const router = useRouter()
 
 // 格式化日期
-const formatDate = (date: string) => {
+const formatDate = (date: string | Date) => {
   return new Date(date).toLocaleDateString('zh-CN', {
     year: 'numeric',
     month: 'short',
@@ -39,7 +39,6 @@ const relativeTime = computed(() => {
 const emit = defineEmits<{
   (e: 'toggle-star', id: string): void
   (e: 'mark-read', id: string): void
-  (e: 'save-to-obsidian', id: string): void
 }>()
 
 // 切换收藏
@@ -54,13 +53,6 @@ const markRead = (e: Event) => {
   e.preventDefault()
   e.stopPropagation()
   emit('mark-read', props.article.id)
-}
-
-// 保存到 Obsidian
-const saveToObsidian = (e: Event) => {
-  e.preventDefault()
-  e.stopPropagation()
-  emit('save-to-obsidian', props.article.id)
 }
 
 // 打开文章详情
@@ -83,10 +75,12 @@ const openArticle = () => {
         <!-- 头部：来源 + 时间 -->
         <div class="flex items-center gap-2 mb-2">
           <!-- 来源图标 -->
-          <img v-if="article.source.favicon" :src="article.source.favicon" :alt="article.source.name"
-            class="w-4 h-4 rounded" />
-          <span class="text-xs text-neutral-500">{{ article.source.name }}</span>
-          <span class="text-neutral-300">·</span>
+          <template v-if="article.source">
+            <img v-if="article.source.favicon" :src="article.source.favicon" :alt="article.source.name"
+              class="w-4 h-4 rounded" />
+            <span class="text-xs text-neutral-500">{{ article.source.name }}</span>
+            <span class="text-neutral-300">·</span>
+          </template>
           <span class="text-xs text-neutral-500">{{ relativeTime }}</span>
           <!-- 阅读时间 -->
           <span v-if="article.readTime" class="text-xs text-neutral-400">
@@ -146,16 +140,6 @@ const openArticle = () => {
                 viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-              </svg>
-            </button>
-
-            <!-- 保存到 Obsidian -->
-            <button
-              class="p-1.5 text-neutral-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-              title="保存到 Obsidian" @click="saveToObsidian">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </button>
 

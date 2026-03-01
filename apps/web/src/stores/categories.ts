@@ -5,6 +5,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { supabase } from '@/composables/useSupabase'
 import type {
   Category,
   CreateCategoryRequest,
@@ -12,24 +13,12 @@ import type {
   CategoryTreeNode,
   CategoryStats,
   CategorySortBy,
-} from '@rss-reader/shared'
-import { useApi, ApiError } from '@/composables/useApi'
+} from '@/types'
 
 /**
  * 分类 Store
  *
- * 管理分类列表、当前分类、加载状态和 CRUD 操作
- *
- * @example
- * ```typescript
- * const categoryStore = useCategoryStore()
- *
- * // 获取分类列表
- * await categoryStore.fetchCategories()
- *
- * // 创建新分类
- * await categoryStore.createCategory({ name: '技术博客' })
- * ```
+ * 使用 Supabase 管理分类列表、当前分类、加载状态和 CRUD 操作
  */
 export const useCategoryStore = defineStore('categories', () => {
   // ============================================================================
@@ -161,22 +150,30 @@ export const useCategoryStore = defineStore('categories', () => {
     error.value = null
 
     try {
-      const api = useApi()
-      const response = await api.get<Category[]>('/categories')
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        error.value = '用户未登录'
+        return
+      }
 
-      if (response.success && response.data) {
-        categories.value = response.data
-        lastUpdated.value = new Date()
-      } else {
-        error.value = response.error || '获取分类列表失败'
+      const { data, error: supabaseError } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('userId', user.id)
+        .order('sortOrder', { ascending: true })
+
+      if (supabaseError) {
+        throw new Error(supabaseError.message)
       }
+
+      categories.value = data || []
+      lastUpdated.value = new Date()
     } catch (e) {
-      if (e instanceof ApiError) {
-        error.value = e.message
-      } else {
-        error.value = '获取分类列表时发生错误'
-      }
-      throw e
+      const message = e instanceof Error ? e.message : '获取分类列表失败'
+      error.value = message
+      console.error('获取分类列表失败:', e)
     } finally {
       isLoading.value = false
     }
@@ -190,26 +187,26 @@ export const useCategoryStore = defineStore('categories', () => {
     error.value = null
 
     try {
-      const api = useApi()
-      const response = await api.get<Category>(`/categories/${id}`)
+      const { data, error: supabaseError } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('id', id)
+        .single()
 
-      if (response.success && response.data) {
-        currentCategory.value = response.data
-        // 更新列表中的分类
-        const index = categories.value.findIndex((c) => c.id === id)
-        if (index !== -1) {
-          categories.value[index] = response.data
-        }
-      } else {
-        error.value = response.error || '获取分类详情失败'
+      if (supabaseError) {
+        throw new Error(supabaseError.message)
+      }
+
+      currentCategory.value = data
+      // 更新列表中的分类
+      const index = categories.value.findIndex((c) => c.id === id)
+      if (index !== -1) {
+        categories.value[index] = data
       }
     } catch (e) {
-      if (e instanceof ApiError) {
-        error.value = e.message
-      } else {
-        error.value = '获取分类详情时发生错误'
-      }
-      throw e
+      const message = e instanceof Error ? e.message : '获取分类详情失败'
+      error.value = message
+      console.error('获取分类详情失败:', e)
     } finally {
       isLoading.value = false
     }
@@ -225,23 +222,45 @@ export const useCategoryStore = defineStore('categories', () => {
     error.value = null
 
     try {
-      const api = useApi()
-      const response = await api.post<Category>('/categories', data)
-
-      if (response.success && response.data) {
-        categories.value.push(response.data)
-        return response.data
-      } else {
-        error.value = response.error || '创建分类失败'
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        error.value = '用户未登录'
         return null
       }
-    } catch (e) {
-      if (e instanceof ApiError) {
-        error.value = e.message
-      } else {
-        error.value = '创建分类时发生错误'
+
+      // 获取当前最大排序值
+      const maxSortOrder = Math.max(
+        0,
+        ...categories.value.map((c) => c.sortOrder)
+      )
+
+      const { data: category, error: supabaseError } = await supabase
+        .from('categories')
+        .insert({
+          userId: user.id,
+          name: data.name,
+          description: data.description,
+          color: data.color,
+          icon: data.icon,
+          parentId: data.parentId,
+          sortOrder: maxSortOrder + 1,
+        })
+        .select()
+        .single()
+
+      if (supabaseError) {
+        throw new Error(supabaseError.message)
       }
-      throw e
+
+      categories.value.push(category)
+      return category
+    } catch (e) {
+      const message = e instanceof Error ? e.message : '创建分类失败'
+      error.value = message
+      console.error('创建分类失败:', e)
+      return null
     } finally {
       isLoading.value = false
     }
@@ -258,29 +277,33 @@ export const useCategoryStore = defineStore('categories', () => {
     error.value = null
 
     try {
-      const api = useApi()
-      const response = await api.put<Category>(`/categories/${id}`, data)
+      const { data: category, error: supabaseError } = await supabase
+        .from('categories')
+        .update({
+          ...data,
+          updatedAt: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .select()
+        .single()
 
-      if (response.success && response.data) {
-        const index = categories.value.findIndex((c) => c.id === id)
-        if (index !== -1) {
-          categories.value[index] = response.data
-        }
-        if (currentCategory.value?.id === id) {
-          currentCategory.value = response.data
-        }
-        return response.data
-      } else {
-        error.value = response.error || '更新分类失败'
-        return null
+      if (supabaseError) {
+        throw new Error(supabaseError.message)
       }
+
+      const index = categories.value.findIndex((c) => c.id === id)
+      if (index !== -1) {
+        categories.value[index] = category
+      }
+      if (currentCategory.value?.id === id) {
+        currentCategory.value = category
+      }
+      return category
     } catch (e) {
-      if (e instanceof ApiError) {
-        error.value = e.message
-      } else {
-        error.value = '更新分类时发生错误'
-      }
-      throw e
+      const message = e instanceof Error ? e.message : '更新分类失败'
+      error.value = message
+      console.error('更新分类失败:', e)
+      return null
     } finally {
       isLoading.value = false
     }
@@ -294,45 +317,44 @@ export const useCategoryStore = defineStore('categories', () => {
     error.value = null
 
     try {
-      const api = useApi()
-      const response = await api.delete(`/categories/${id}`)
+      const { error: supabaseError } = await supabase
+        .from('categories')
+        .delete()
+        .eq('id', id)
 
-      if (response.success) {
-        // 删除分类及其所有子分类
-        const idsToDelete = new Set<string>()
-        idsToDelete.add(id)
+      if (supabaseError) {
+        throw new Error(supabaseError.message)
+      }
 
-        // 递归找到所有子分类
-        const findChildren = (parentId: string) => {
-          for (const cat of categories.value) {
-            if (cat.parentId === parentId) {
-              idsToDelete.add(cat.id)
-              findChildren(cat.id)
-            }
+      // 删除分类及其所有子分类
+      const idsToDelete = new Set<string>()
+      idsToDelete.add(id)
+
+      // 递归找到所有子分类
+      const findChildren = (parentId: string) => {
+        for (const cat of categories.value) {
+          if (cat.parentId === parentId) {
+            idsToDelete.add(cat.id)
+            findChildren(cat.id)
           }
         }
-        findChildren(id)
-
-        categories.value = categories.value.filter(
-          (c) => !idsToDelete.has(c.id)
-        )
-
-        if (currentCategory.value?.id === id) {
-          currentCategory.value = null
-        }
-
-        return true
-      } else {
-        error.value = response.error || '删除分类失败'
-        return false
       }
+      findChildren(id)
+
+      categories.value = categories.value.filter(
+        (c) => !idsToDelete.has(c.id)
+      )
+
+      if (currentCategory.value?.id === id) {
+        currentCategory.value = null
+      }
+
+      return true
     } catch (e) {
-      if (e instanceof ApiError) {
-        error.value = e.message
-      } else {
-        error.value = '删除分类时发生错误'
-      }
-      throw e
+      const message = e instanceof Error ? e.message : '删除分类失败'
+      error.value = message
+      console.error('删除分类失败:', e)
+      return false
     } finally {
       isLoading.value = false
     }
@@ -348,29 +370,31 @@ export const useCategoryStore = defineStore('categories', () => {
     error.value = null
 
     try {
-      const api = useApi()
-      const response = await api.put('/categories/sort-order', { orders })
+      // 批量更新
+      for (const { id, sortOrder: newSortOrder } of orders) {
+        const { error: supabaseError } = await supabase
+          .from('categories')
+          .update({ sortOrder: newSortOrder })
+          .eq('id', id)
 
-      if (response.success) {
-        // 更新本地状态
-        for (const { id, sortOrder } of orders) {
-          const category = categories.value.find((c) => c.id === id)
-          if (category) {
-            category.sortOrder = sortOrder
-          }
+        if (supabaseError) {
+          throw new Error(supabaseError.message)
         }
-        return true
-      } else {
-        error.value = response.error || '更新排序失败'
-        return false
       }
+
+      // 更新本地状态
+      for (const { id, sortOrder: newSortOrder } of orders) {
+        const category = categories.value.find((c) => c.id === id)
+        if (category) {
+          category.sortOrder = newSortOrder
+        }
+      }
+      return true
     } catch (e) {
-      if (e instanceof ApiError) {
-        error.value = e.message
-      } else {
-        error.value = '更新排序时发生错误'
-      }
-      throw e
+      const message = e instanceof Error ? e.message : '更新排序失败'
+      error.value = message
+      console.error('更新排序失败:', e)
+      return false
     } finally {
       isLoading.value = false
     }
@@ -387,31 +411,30 @@ export const useCategoryStore = defineStore('categories', () => {
     error.value = null
 
     try {
-      const api = useApi()
-      const response = await api.put<Category>(
-        `/categories/${categoryId}/move`,
-        {
+      const { data: category, error: supabaseError } = await supabase
+        .from('categories')
+        .update({
           parentId: newParentId,
-        }
-      )
+          updatedAt: new Date().toISOString(),
+        })
+        .eq('id', categoryId)
+        .select()
+        .single()
 
-      if (response.success && response.data) {
-        const index = categories.value.findIndex((c) => c.id === categoryId)
-        if (index !== -1) {
-          categories.value[index] = response.data
-        }
-        return true
-      } else {
-        error.value = response.error || '移动分类失败'
-        return false
+      if (supabaseError) {
+        throw new Error(supabaseError.message)
       }
+
+      const index = categories.value.findIndex((c) => c.id === categoryId)
+      if (index !== -1) {
+        categories.value[index] = category
+      }
+      return true
     } catch (e) {
-      if (e instanceof ApiError) {
-        error.value = e.message
-      } else {
-        error.value = '移动分类时发生错误'
-      }
-      throw e
+      const message = e instanceof Error ? e.message : '移动分类失败'
+      error.value = message
+      console.error('移动分类失败:', e)
+      return false
     } finally {
       isLoading.value = false
     }
@@ -422,12 +445,57 @@ export const useCategoryStore = defineStore('categories', () => {
    */
   async function fetchCategoryStats(id: string): Promise<void> {
     try {
-      const api = useApi()
-      const response = await api.get<CategoryStats>(`/categories/${id}/stats`)
+      // 获取订阅数量
+      const { count: subscriptionCount } = await supabase
+        .from('subscriptions')
+        .select('*', { count: 'exact', head: true })
+        .eq('categoryId', id)
 
-      if (response.success && response.data) {
-        categoryStats.value.set(id, response.data)
+      // 获取该分类下的订阅 ID
+      const { data: subscriptions } = await supabase
+        .from('subscriptions')
+        .select('id')
+        .eq('categoryId', id)
+
+      const subscriptionIds = subscriptions?.map((s) => s.id) || []
+
+      let totalArticles = 0
+      let unreadArticles = 0
+      let starredArticles = 0
+
+      if (subscriptionIds.length > 0) {
+        // 获取文章总数
+        const { count: total } = await supabase
+          .from('articles')
+          .select('*', { count: 'exact', head: true })
+          .in('subscriptionId', subscriptionIds)
+
+        // 获取未读数
+        const { count: unread } = await supabase
+          .from('articles')
+          .select('*', { count: 'exact', head: true })
+          .in('subscriptionId', subscriptionIds)
+          .eq('isRead', false)
+
+        // 获取收藏数
+        const { count: starred } = await supabase
+          .from('articles')
+          .select('*', { count: 'exact', head: true })
+          .in('subscriptionId', subscriptionIds)
+          .eq('isStarred', true)
+
+        totalArticles = total || 0
+        unreadArticles = unread || 0
+        starredArticles = starred || 0
       }
+
+      categoryStats.value.set(id, {
+        categoryId: id,
+        subscriptionCount: subscriptionCount || 0,
+        totalArticles,
+        unreadArticles,
+        starredArticles,
+      })
     } catch (e) {
       console.error('获取分类统计信息失败:', e)
     }
@@ -438,13 +506,8 @@ export const useCategoryStore = defineStore('categories', () => {
    */
   async function fetchAllCategoryStats(): Promise<void> {
     try {
-      const api = useApi()
-      const response = await api.get<CategoryStats[]>('/categories/stats')
-
-      if (response.success && response.data) {
-        for (const stats of response.data) {
-          categoryStats.value.set(stats.categoryId, stats)
-        }
+      for (const category of categories.value) {
+        await fetchCategoryStats(category.id)
       }
     } catch (e) {
       console.error('获取分类统计信息失败:', e)

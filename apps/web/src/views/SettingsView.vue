@@ -1,8 +1,5 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-
-const router = useRouter()
 
 // 设置菜单项
 const menuItems = [
@@ -19,13 +16,6 @@ const menuItems = [
     description: '自动处理新文章，如标记已读或添加标签',
     icon: 'filter',
     path: '/settings/filters',
-  },
-  {
-    id: 'obsidian',
-    title: 'Obsidian 配置',
-    description: '配置 Obsidian 集成，同步文章到笔记库',
-    icon: 'obsidian',
-    path: '/settings/obsidian',
   },
   {
     id: 'notifications',
